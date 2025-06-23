@@ -20,11 +20,8 @@ export class SubprocessCLITransport {
 
   private async findCLI(): Promise<string> {
     // First check for local Claude installation (newer version with --output-format support)
-    const localPaths = [
-      join(homedir(), '.claude', 'local', 'claude'),
-      join(homedir(), '.claude', 'bin', 'claude')
-    ];
-    
+    const localPaths = [join(homedir(), '.claude', 'local', 'claude'), join(homedir(), '.claude', 'bin', 'claude')];
+
     for (const path of localPaths) {
       try {
         await access(path, constants.X_OK);
@@ -33,7 +30,7 @@ export class SubprocessCLITransport {
         // Continue checking
       }
     }
-    
+
     // Then try to find in PATH - try both 'claude' and 'claude-code' for compatibility
     try {
       return await which('claude');
@@ -70,7 +67,7 @@ export class SubprocessCLITransport {
         join(home, '.local', 'bin', 'claude-code'),
         join(home, 'bin', 'claude'),
         join(home, 'bin', 'claude-code'),
-        join(home, '.claude', 'local', 'claude')  // Claude's custom installation path
+        join(home, '.claude', 'local', 'claude') // Claude's custom installation path
       );
     }
 
@@ -78,10 +75,7 @@ export class SubprocessCLITransport {
     try {
       const { stdout: npmPrefix } = await execa('npm', ['config', 'get', 'prefix']);
       if (npmPrefix) {
-        paths.push(
-          join(npmPrefix.trim(), 'bin', 'claude'),
-          join(npmPrefix.trim(), 'bin', 'claude-code')
-        );
+        paths.push(join(npmPrefix.trim(), 'bin', 'claude'), join(npmPrefix.trim(), 'bin', 'claude-code'));
       }
     } catch {
       // Ignore error and continue
@@ -93,8 +87,8 @@ export class SubprocessCLITransport {
         await execa(path, ['--version']);
         return path;
       } catch {
-      // Ignore error and continue
-    }
+        // Ignore error and continue
+      }
     }
 
     throw new CLINotFoundError();
@@ -107,9 +101,14 @@ export class SubprocessCLITransport {
     // Claude CLI supported flags (from --help)
     if (this.options.model) args.push('--model', this.options.model);
     // Don't pass --debug flag as it produces non-JSON output
-    
+
     // Note: Claude CLI handles authentication internally
     // It will use either session auth or API key based on user's setup
+
+    // Handle session resumption
+    if (this.options.sessionId) {
+      args.push('--resume', this.options.sessionId);
+    }
 
     // Handle allowed/disallowed tools (Claude CLI uses camelCase flags)
     if (this.options.allowedTools && this.options.allowedTools.length > 0) {
@@ -163,7 +162,7 @@ export class SubprocessCLITransport {
         stderr: 'pipe',
         buffer: false
       });
-      
+
       // Send prompt via stdin
       if (this.process.stdin) {
         this.process.stdin.write(this.prompt);
@@ -185,8 +184,8 @@ export class SubprocessCLITransport {
         input: this.process.stderr,
         crlfDelay: Infinity
       });
-      
-      stderrRl.on('line', (line) => {
+
+      stderrRl.on('line', line => {
         if (this.options.debug) {
           console.error('DEBUG stderr:', line);
         }
@@ -202,21 +201,18 @@ export class SubprocessCLITransport {
     for await (const line of rl) {
       const trimmedLine = line.trim();
       if (!trimmedLine) continue;
-      
+
       if (this.options.debug) {
         console.error('DEBUG stdout:', trimmedLine);
       }
-      
+
       try {
         const parsed = JSON.parse(trimmedLine) as CLIOutput;
         yield parsed;
       } catch (error) {
         // Skip non-JSON lines (like Python SDK does)
         if (trimmedLine.startsWith('{') || trimmedLine.startsWith('[')) {
-          throw new CLIJSONDecodeError(
-            `Failed to parse CLI output: ${error}`,
-            trimmedLine
-          );
+          throw new CLIJSONDecodeError(`Failed to parse CLI output: ${error}`, trimmedLine);
         }
         continue;
       }
@@ -227,11 +223,7 @@ export class SubprocessCLITransport {
       await this.process;
     } catch (error: any) {
       if (error.exitCode !== 0) {
-        throw new ProcessError(
-          `Claude Code CLI exited with code ${error.exitCode}`,
-          error.exitCode,
-          error.signal
-        );
+        throw new ProcessError(`Claude Code CLI exited with code ${error.exitCode}`, error.exitCode, error.signal);
       }
     }
   }

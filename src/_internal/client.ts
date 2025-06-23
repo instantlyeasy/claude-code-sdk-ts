@@ -34,22 +34,25 @@ export class InternalClient {
       case 'user':
         return {
           type: 'user',
-          content: output.message?.content || ''
+          content: output.message?.content || '',
+          session_id: output.session_id
         };
-      
+
       case 'assistant':
         return {
           type: 'assistant',
-          content: output.message?.content || []
+          content: output.message?.content || [],
+          session_id: output.session_id
         };
-        
+
       case 'system':
         return {
           type: 'system',
           subtype: output.subtype,
-          data: output
+          data: output,
+          session_id: output.session_id
         };
-        
+
       case 'result':
         return {
           type: 'result',
@@ -58,12 +61,13 @@ export class InternalClient {
           usage: output.usage,
           cost: {
             total_cost: output.total_cost_usd
-          }
+          },
+          session_id: output.session_id
         };
-      
+
       case 'error':
         throw new ClaudeSDKError(`CLI error: ${output.error?.message || 'Unknown error'}`);
-      
+
       default:
         // Skip unknown message types
         return null;

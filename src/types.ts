@@ -2,7 +2,7 @@
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
 
 // Tool names that can be allowed or denied
-export type ToolName = 
+export type ToolName =
   | 'Read'
   | 'Write'
   | 'Edit'
@@ -46,23 +46,27 @@ export type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock;
 export interface UserMessage {
   type: 'user';
   content: string;
+  session_id?: string;
 }
 
 export interface AssistantMessage {
   type: 'assistant';
   content: ContentBlock[];
+  session_id?: string;
 }
 
 export interface SystemMessage {
   type: 'system';
   subtype?: string;
   data?: any;
+  session_id?: string;
 }
 
 export interface ResultMessage {
   type: 'result';
   subtype?: string;
   content: string;
+  session_id?: string;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
@@ -104,6 +108,7 @@ export interface ClaudeCodeOptions {
   env?: Record<string, string>;
   timeout?: number;
   debug?: boolean;
+  sessionId?: string;
 }
 
 // Additional types for internal use

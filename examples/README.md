@@ -116,6 +116,51 @@ for await (const message of query('Your prompt', options)) {
 }
 ```
 
+### Session Management
+
+Sessions allow you to maintain conversation context across multiple queries:
+
+#### Using getSessionId() and withSessionId()
+
+```javascript
+import { claude } from '@instantlyeasy/claude-code-sdk-ts';
+
+const builder = claude().withModel('sonnet').skipPermissions();
+
+// First query establishes the session
+const parser = builder.query('Tell me a number between 1 and 100');
+const sessionId = await parser.getSessionId();
+const firstResponse = await parser.asText();
+
+// Continue the conversation with session context
+const secondResponse = await builder.withSessionId(sessionId).query('Which number did you pick?').asText();
+```
+
+#### Using withSession()
+
+```javascript
+import { claude } from '@instantlyeasy/claude-code-sdk-ts';
+
+const session = claude().withModel('sonnet').skipPermissions().withSession();
+
+// All queries automatically maintain session context
+const firstCard = await session.query('Pick a random card').asText();
+const secondCard = await session.query('Which card did you pick?').asText();
+```
+
+#### Classic API with sessionId option
+
+```javascript
+const options = {
+  sessionId: 'existing-session-id',
+  permissionMode: 'bypassPermissions'
+};
+
+for await (const message of query('Continue our conversation', options)) {
+  // Handle messages with maintained context
+}
+```
+
 ### Full Message Handling
 ```javascript
 for await (const message of query('Your prompt')) {
@@ -145,6 +190,12 @@ See [interactive-session.js](./interactive-session.js) for:
 - Building interactive CLIs
 - Dynamic option configuration
 - User input handling
+
+See [sessions.js](./sessions.js) for:
+
+- Session management with `getSessionId()` and `withSessionId()`
+- Using the `withSession()` method for automatic session handling
+- Maintaining conversation context across multiple queries
 
 ## 📖 Additional Resources
 
