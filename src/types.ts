@@ -2,7 +2,7 @@
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
 
 // Tool names that can be allowed or denied
-export type ToolName = 
+export type ToolName =
   | 'Read'
   | 'Write'
   | 'Edit'
@@ -104,6 +104,7 @@ export interface ClaudeCodeOptions {
   env?: Record<string, string>;
   timeout?: number;
   debug?: boolean;
+  addDirectories?: string[];
 }
 
 // Additional types for internal use

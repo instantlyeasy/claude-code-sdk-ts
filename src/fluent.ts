@@ -5,7 +5,7 @@ import { Logger } from './logger.js';
 
 /**
  * Fluent API for building Claude Code queries with chainable methods
- * 
+ *
  * @example
  * ```typescript
  * const result = await claude()
@@ -112,6 +112,18 @@ export class QueryBuilder {
   }
 
   /**
+   * Add directory(-ies) to include in the context
+   */
+  addDirectory(directories: string | string[]): this {
+    if (!this.options.addDirectories) {
+      this.options.addDirectories = [];
+    }
+    const dirsToAdd = Array.isArray(directories) ? directories : [directories];
+    this.options.addDirectories.push(...dirsToAdd);
+    return this;
+  }
+
+  /**
    * Set logger
    */
   withLogger(logger: Logger): this {
@@ -131,7 +143,7 @@ export class QueryBuilder {
    * Add handler for specific message type
    */
   onAssistant(handler: (content: any) => void): this {
-    this.messageHandlers.push((msg) => {
+    this.messageHandlers.push(msg => {
       if (msg.type === 'assistant') {
         handler((msg as any).content);
       }
@@ -143,7 +155,7 @@ export class QueryBuilder {
    * Add handler for tool usage
    */
   onToolUse(handler: (tool: { name: string; input: any }) => void): this {
-    this.messageHandlers.push((msg) => {
+    this.messageHandlers.push(msg => {
       if (msg.type === 'assistant') {
         for (const block of msg.content) {
           if (block.type === 'tool_use') {
@@ -159,11 +171,7 @@ export class QueryBuilder {
    * Execute query and return response parser
    */
   query(prompt: string): ResponseParser {
-    const parser = new ResponseParser(
-      baseQuery(prompt, this.options),
-      this.messageHandlers,
-      this.logger
-    );
+    const parser = new ResponseParser(baseQuery(prompt, this.options), this.messageHandlers, this.logger);
     return parser;
   }
 
@@ -172,10 +180,10 @@ export class QueryBuilder {
    */
   async *queryRaw(prompt: string): AsyncGenerator<Message> {
     this.logger?.info('Starting query', { prompt, options: this.options });
-    
+
     for await (const message of baseQuery(prompt, this.options)) {
       this.logger?.debug('Received message', { type: message.type });
-      
+
       // Run handlers
       for (const handler of this.messageHandlers) {
         try {
@@ -184,10 +192,10 @@ export class QueryBuilder {
           this.logger?.error('Message handler error', { error });
         }
       }
-      
+
       yield message;
     }
-    
+
     this.logger?.info('Query completed');
   }
 
@@ -201,7 +209,7 @@ export class QueryBuilder {
 
 /**
  * Factory function for creating a new query builder
- * 
+ *
  * @example
  * ```typescript
  * const response = await claude()

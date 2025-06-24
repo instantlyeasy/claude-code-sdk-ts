@@ -40,9 +40,12 @@ describe('QueryBuilder', () => {
       const builder = claude().withModel('opus');
       builder.query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        model: 'opus'
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          model: 'opus'
+        })
+      );
     });
 
     it('should chain multiple configurations', () => {
@@ -50,19 +53,17 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
-      claude()
-        .withModel('sonnet')
-        .withTimeout(5000)
-        .debug(true)
-        .inDirectory('/test/dir')
-        .query('test');
+      claude().withModel('sonnet').withTimeout(5000).debug(true).inDirectory('/test/dir').query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        model: 'sonnet',
-        timeout: 5000,
-        debug: true,
-        cwd: '/test/dir'
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          model: 'sonnet',
+          timeout: 5000,
+          debug: true,
+          cwd: '/test/dir'
+        })
+      );
     });
   });
 
@@ -72,13 +73,14 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
-      claude()
-        .allowTools('Read', 'Write', 'Edit')
-        .query('test');
+      claude().allowTools('Read', 'Write', 'Edit').query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        allowedTools: ['Read', 'Write', 'Edit']
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          allowedTools: ['Read', 'Write', 'Edit']
+        })
+      );
     });
 
     it('should set denied tools', () => {
@@ -86,13 +88,14 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
-      claude()
-        .denyTools('Bash', 'WebSearch')
-        .query('test');
+      claude().denyTools('Bash', 'WebSearch').query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        deniedTools: ['Bash', 'WebSearch']
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          deniedTools: ['Bash', 'WebSearch']
+        })
+      );
     });
 
     it('should handle both allowed and denied tools', () => {
@@ -100,15 +103,15 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
-      claude()
-        .allowTools('Read')
-        .denyTools('Write')
-        .query('test');
+      claude().allowTools('Read').denyTools('Write').query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        allowedTools: ['Read'],
-        deniedTools: ['Write']
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          allowedTools: ['Read'],
+          deniedTools: ['Write']
+        })
+      );
     });
   });
 
@@ -118,13 +121,14 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
-      claude()
-        .skipPermissions()
-        .query('test');
+      claude().skipPermissions().query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        permissionMode: 'bypassPermissions'
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          permissionMode: 'bypassPermissions'
+        })
+      );
     });
 
     it('should set accept edits', () => {
@@ -132,13 +136,14 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
-      claude()
-        .acceptEdits()
-        .query('test');
+      claude().acceptEdits().query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        permissionMode: 'acceptEdits'
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          permissionMode: 'acceptEdits'
+        })
+      );
     });
 
     it('should set custom permission mode', () => {
@@ -146,13 +151,14 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
-      claude()
-        .withPermissions('default')
-        .query('test');
+      claude().withPermissions('default').query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        permissionMode: 'default'
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          permissionMode: 'default'
+        })
+      );
     });
   });
 
@@ -162,13 +168,14 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
-      claude()
-        .withEnv({ NODE_ENV: 'test', API_KEY: 'secret' })
-        .query('test');
+      claude().withEnv({ NODE_ENV: 'test', API_KEY: 'secret' }).query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        env: { NODE_ENV: 'test', API_KEY: 'secret' }
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          env: { NODE_ENV: 'test', API_KEY: 'secret' }
+        })
+      );
     });
 
     it('should merge multiple env calls', () => {
@@ -176,14 +183,14 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
-      claude()
-        .withEnv({ NODE_ENV: 'test' })
-        .withEnv({ API_KEY: 'secret' })
-        .query('test');
+      claude().withEnv({ NODE_ENV: 'test' }).withEnv({ API_KEY: 'secret' }).query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        env: { NODE_ENV: 'test', API_KEY: 'secret' }
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          env: { NODE_ENV: 'test', API_KEY: 'secret' }
+        })
+      );
     });
   });
 
@@ -194,18 +201,15 @@ describe('QueryBuilder', () => {
       });
 
       claude()
-        .withMCP(
-          { command: 'mcp-server-1' },
-          { command: 'mcp-server-2', args: ['--flag'] }
-        )
+        .withMCP({ command: 'mcp-server-1' }, { command: 'mcp-server-2', args: ['--flag'] })
         .query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        mcpServers: [
-          { command: 'mcp-server-1' },
-          { command: 'mcp-server-2', args: ['--flag'] }
-        ]
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          mcpServers: [{ command: 'mcp-server-1' }, { command: 'mcp-server-2', args: ['--flag'] }]
+        })
+      );
     });
 
     it('should accumulate MCP servers from multiple calls', () => {
@@ -213,24 +217,72 @@ describe('QueryBuilder', () => {
         yield { type: 'result', content: 'done' };
       });
 
+      claude().withMCP({ command: 'server1' }).withMCP({ command: 'server2' }).query('test');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          mcpServers: [{ command: 'server1' }, { command: 'server2' }]
+        })
+      );
+    });
+  });
+
+  describe('Add Directories', () => {
+    it('should add a single directory as string', () => {
+      mockQuery.mockImplementation(async function* () {
+        yield { type: 'result', content: 'done' };
+      });
+
+      claude().addDirectory('/path/to/dir').query('test');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          addDirectories: ['/path/to/dir']
+        })
+      );
+    });
+
+    it('should add multiple directories as array', () => {
+      mockQuery.mockImplementation(async function* () {
+        yield { type: 'result', content: 'done' };
+      });
+
+      claude().addDirectory(['/path/to/dir1', '/path/to/dir2']).query('test');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          addDirectories: ['/path/to/dir1', '/path/to/dir2']
+        })
+      );
+    });
+
+    it('should accumulate directories from multiple calls', () => {
+      mockQuery.mockImplementation(async function* () {
+        yield { type: 'result', content: 'done' };
+      });
+
       claude()
-        .withMCP({ command: 'server1' })
-        .withMCP({ command: 'server2' })
+        .addDirectory('/first/dir')
+        .addDirectory(['/second/dir', '/third/dir'])
+        .addDirectory('/fourth/dir')
         .query('test');
 
-      expect(mockQuery).toHaveBeenCalledWith('test', expect.objectContaining({
-        mcpServers: [
-          { command: 'server1' },
-          { command: 'server2' }
-        ]
-      }));
+      expect(mockQuery).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          addDirectories: ['/first/dir', '/second/dir', '/third/dir', '/fourth/dir']
+        })
+      );
     });
   });
 
   describe('Event Handlers', () => {
     it('should call message handlers', async () => {
       const handler = vi.fn();
-      
+
       mockQuery.mockImplementation(async function* () {
         yield { type: 'user', content: 'Hello' };
         yield { type: 'assistant', content: [{ type: 'text', text: 'Hi!' }] };
@@ -250,7 +302,7 @@ describe('QueryBuilder', () => {
 
     it('should call assistant handlers', async () => {
       const handler = vi.fn();
-      
+
       mockQuery.mockImplementation(async function* () {
         yield { type: 'user', content: 'Hello' };
         yield { type: 'assistant', content: [{ type: 'text', text: 'Hi!' }] };
@@ -267,13 +319,18 @@ describe('QueryBuilder', () => {
 
     it('should call tool use handlers', async () => {
       const handler = vi.fn();
-      
+
       mockQuery.mockImplementation(async function* () {
         yield {
           type: 'assistant',
           content: [
             { type: 'text', text: 'Let me read that file' },
-            { type: 'tool_use', id: '1', name: 'Read', input: { path: 'test.txt' } }
+            {
+              type: 'tool_use',
+              id: '1',
+              name: 'Read',
+              input: { path: 'test.txt' }
+            }
           ]
         };
       });
@@ -295,15 +352,12 @@ describe('QueryBuilder', () => {
       });
       const logger = new ConsoleLogger();
       const logSpy = vi.spyOn(logger, 'error');
-      
+
       mockQuery.mockImplementation(async function* () {
         yield { type: 'result', content: 'done' };
       });
 
-      for await (const _ of claude()
-        .withLogger(logger)
-        .onMessage(errorHandler)
-        .queryRaw('test')) {
+      for await (const _ of claude().withLogger(logger).onMessage(errorHandler).queryRaw('test')) {
         // Process
       }
 
@@ -316,7 +370,7 @@ describe('QueryBuilder', () => {
       const logger = new ConsoleLogger();
       const infoSpy = vi.spyOn(logger, 'info');
       const debugSpy = vi.spyOn(logger, 'debug');
-      
+
       mockQuery.mockImplementation(async function* () {
         yield { type: 'user', content: 'test' };
         yield { type: 'result', content: 'done' };
@@ -326,11 +380,18 @@ describe('QueryBuilder', () => {
         // Process
       }
 
-      expect(infoSpy).toHaveBeenCalledWith('Starting query', expect.objectContaining({
-        prompt: 'test prompt'
-      }));
-      expect(debugSpy).toHaveBeenCalledWith('Received message', { type: 'user' });
-      expect(debugSpy).toHaveBeenCalledWith('Received message', { type: 'result' });
+      expect(infoSpy).toHaveBeenCalledWith(
+        'Starting query',
+        expect.objectContaining({
+          prompt: 'test prompt'
+        })
+      );
+      expect(debugSpy).toHaveBeenCalledWith('Received message', {
+        type: 'user'
+      });
+      expect(debugSpy).toHaveBeenCalledWith('Received message', {
+        type: 'result'
+      });
       expect(infoSpy).toHaveBeenCalledWith('Query completed');
     });
   });
@@ -347,19 +408,18 @@ describe('QueryBuilder', () => {
 
     it('should pass handlers to ResponseParser', async () => {
       const handler = vi.fn();
-      
+
       mockQuery.mockImplementation(async function* () {
         yield { type: 'assistant', content: [{ type: 'text', text: 'Hello' }] };
       });
 
-      await claude()
-        .onMessage(handler)
-        .query('test')
-        .asText();
+      await claude().onMessage(handler).query('test').asText();
 
-      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'assistant'
-      }));
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'assistant'
+        })
+      );
     });
   });
 });

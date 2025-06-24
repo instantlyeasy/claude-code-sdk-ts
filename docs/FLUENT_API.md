@@ -3,6 +3,7 @@
 The Claude Code SDK now includes a powerful fluent API that makes it easier to build and execute queries with a chainable interface.
 
 ## Table of Contents
+
 - [Getting Started](#getting-started)
 - [Query Builder](#query-builder)
 - [Response Parser](#response-parser)
@@ -18,11 +19,7 @@ The fluent API provides a more intuitive way to interact with Claude Code:
 import { claude } from '@instantlyeasy/claude-code-sdk-ts';
 
 // Simple example
-const response = await claude()
-  .withModel('sonnet')
-  .skipPermissions()
-  .query('Hello, Claude!')
-  .asText();
+const response = await claude().withModel('sonnet').skipPermissions().query('Hello, Claude!').asText();
 ```
 
 ## Query Builder
@@ -33,44 +30,54 @@ The `QueryBuilder` class provides chainable methods for configuring your query:
 
 ```typescript
 claude()
-  .withModel('opus')        // or 'sonnet', 'haiku'
-  .withTimeout(60000)       // 60 seconds
-  .debug(true)              // Enable debug mode
+  .withModel('opus') // or 'sonnet', 'haiku'
+  .withTimeout(60000) // 60 seconds
+  .debug(true); // Enable debug mode
 ```
 
 ### Tool Management
 
 ```typescript
 claude()
-  .allowTools('Read', 'Write', 'Edit')    // Explicitly allow tools
-  .denyTools('Bash', 'WebSearch')         // Explicitly deny tools
+  .allowTools('Read', 'Write', 'Edit') // Explicitly allow tools
+  .denyTools('Bash', 'WebSearch'); // Explicitly deny tools
 ```
 
 ### Permissions
 
 ```typescript
 claude()
-  .skipPermissions()        // Bypass all permission prompts
-  .acceptEdits()           // Auto-accept file edits
-  .withPermissions('default')  // Use default permission handling
+  .skipPermissions() // Bypass all permission prompts
+  .acceptEdits() // Auto-accept file edits
+  .withPermissions('default'); // Use default permission handling
 ```
 
 ### Environment Configuration
 
 ```typescript
-claude()
-  .inDirectory('/path/to/project')
-  .withEnv({ NODE_ENV: 'production' })
+claude().inDirectory('/path/to/project').withEnv({ NODE_ENV: 'production' });
 ```
+
+### Directory Context
+
+```typescript
+claude()
+  .addDirectory('/path/to/dir') // Add single directory
+  .addDirectory(['../apps', '../lib']) // Add multiple directories
+  .addDirectory('/another/dir'); // Accumulate with multiple calls
+```
+
+The `addDirectory` method allows you to add additional working directories for Claude to access (validates each path exists as a directory).
+
+- **Single directory**: Pass a string path
+- **Multiple directories**: Pass an array of string paths
+- **Accumulative**: Multiple calls to `addDirectory` will accumulate all directories
+- **CLI mapping**: Generates `--add-dir` flag with space-separated paths
 
 ### MCP Servers
 
 ```typescript
-claude()
-  .withMCP(
-    { command: 'mcp-server-filesystem', args: ['--readonly'] },
-    { command: 'mcp-server-git' }
-  )
+claude().withMCP({ command: 'mcp-server-filesystem', args: ['--readonly'] }, { command: 'mcp-server-git' });
 ```
 
 ### Event Handlers
@@ -79,7 +86,7 @@ claude()
 claude()
   .onMessage(msg => console.log('Message:', msg.type))
   .onAssistant(content => console.log('Assistant says...'))
-  .onToolUse(tool => console.log(`Using ${tool.name}`))
+  .onToolUse(tool => console.log(`Using ${tool.name}`));
 ```
 
 ## Response Parser
@@ -126,7 +133,7 @@ console.log(`Cost: $${usage.totalCost}`);
 ### Streaming
 
 ```typescript
-await parser.stream(async (message) => {
+await parser.stream(async message => {
   if (message.type === 'assistant') {
     // Handle streaming content
   }
@@ -165,9 +172,7 @@ const logger = new ConsoleLogger(LogLevel.DEBUG, '[MyApp]');
 const jsonLogger = new JSONLogger(LogLevel.INFO);
 
 // Use with QueryBuilder
-claude()
-  .withLogger(logger)
-  .query('...');
+claude().withLogger(logger).query('...');
 ```
 
 ### Custom Logger Implementation
@@ -188,9 +193,14 @@ class CustomLogger implements Logger {
 
   // Implement convenience methods
   error(message: string, context?: Record<string, any>): void {
-    this.log({ level: LogLevel.ERROR, message, timestamp: new Date(), context });
+    this.log({
+      level: LogLevel.ERROR,
+      message,
+      timestamp: new Date(),
+      context
+    });
   }
-  
+
   // ... implement warn, info, debug, trace
 }
 ```
@@ -214,10 +224,7 @@ const multiLogger = new MultiLogger([
 async function queryWithRetry(prompt: string, maxRetries = 3) {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      return await claude()
-        .withTimeout(30000)
-        .query(prompt)
-        .asText();
+      return await claude().withTimeout(30000).query(prompt).asText();
     } catch (error) {
       if (i === maxRetries - 1) throw error;
       await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
@@ -231,13 +238,13 @@ async function queryWithRetry(prompt: string, maxRetries = 3) {
 ```typescript
 function createQuery(options: { readonly?: boolean }) {
   const builder = claude();
-  
+
   if (options.readonly) {
     builder.allowTools('Read', 'Grep', 'Glob').denyTools('Write', 'Edit');
   } else {
     builder.allowTools('Read', 'Write', 'Edit');
   }
-  
+
   return builder;
 }
 ```
@@ -248,16 +255,14 @@ function createQuery(options: { readonly?: boolean }) {
 const cache = new Map();
 
 async function cachedQuery(prompt: string) {
-  const cacheKey = `${prompt}:${Date.now() / 60000 | 0}`; // 1-minute cache
-  
+  const cacheKey = `${prompt}:${(Date.now() / 60000) | 0}`; // 1-minute cache
+
   if (cache.has(cacheKey)) {
     return cache.get(cacheKey);
   }
-  
-  const result = await claude()
-    .query(prompt)
-    .asText();
-  
+
+  const result = await claude().query(prompt).asText();
+
   cache.set(cacheKey, result);
   return result;
 }
@@ -283,7 +288,7 @@ import { claude } from '@instantlyeasy/claude-code-sdk-ts';
 await claude()
   .withModel('sonnet')
   .query('Hello')
-  .stream(async (message) => {
+  .stream(async message => {
     // Process messages
   });
 ```
@@ -291,6 +296,7 @@ await claude()
 ### Common Migration Patterns
 
 1. **Simple text extraction**:
+
 ```typescript
 // Before
 let text = '';
@@ -305,12 +311,11 @@ for await (const message of query('Generate text')) {
 }
 
 // After
-const text = await claude()
-  .query('Generate text')
-  .asText();
+const text = await claude().query('Generate text').asText();
 ```
 
 2. **Tool result extraction**:
+
 ```typescript
 // Before
 const results = [];
@@ -325,13 +330,11 @@ for await (const message of query('Read files', { allowedTools: ['Read'] })) {
 }
 
 // After
-const results = await claude()
-  .allowTools('Read')
-  .query('Read files')
-  .findToolResults('Read');
+const results = await claude().allowTools('Read').query('Read files').findToolResults('Read');
 ```
 
 3. **Error handling**:
+
 ```typescript
 // Before
 try {

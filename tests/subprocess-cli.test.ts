@@ -18,17 +18,17 @@ describe('SubprocessCLITransport', () => {
     stdoutStream = new Readable({
       read() {}
     });
-    
+
     const stdinStream = new Readable({ read() {} });
     (stdinStream as any).write = vi.fn();
     (stdinStream as any).end = vi.fn();
-    
+
     mockProcess = {
       stdout: stdoutStream,
       stderr: new Readable({ read() {} }),
       stdin: stdinStream,
       cancel: vi.fn(),
-      then: vi.fn((onfulfilled) => {
+      then: vi.fn(onfulfilled => {
         // Simulate successful process completion
         if (onfulfilled) onfulfilled({ exitCode: 0 });
         return Promise.resolve({ exitCode: 0 });
@@ -105,10 +105,7 @@ describe('SubprocessCLITransport', () => {
         deniedTools: ['WebSearch'] as any,
         permissionMode: 'acceptEdits' as any,
         context: ['file1.txt', 'file2.txt'],
-        mcpServers: [
-          { command: 'server1', args: ['--port', '3000'] },
-          { command: 'server2' }
-        ]
+        mcpServers: [{ command: 'server1', args: ['--port', '3000'] }, { command: 'server2' }]
       };
 
       const transport = new SubprocessCLITransport('test prompt', options);
@@ -116,27 +113,74 @@ describe('SubprocessCLITransport', () => {
 
       const expectedArgs = [
         'test prompt',
-        '--output-format', 'json',
-        '--model', 'claude-3',
-        '--api-key', 'test-key',
-        '--base-url', 'https://api.test.com',
-        '--max-tokens', '1000',
-        '--temperature', '0.7',
-        '--timeout', '30000',
+        '--output-format',
+        'json',
+        '--model',
+        'claude-3',
+        '--api-key',
+        'test-key',
+        '--base-url',
+        'https://api.test.com',
+        '--max-tokens',
+        '1000',
+        '--temperature',
+        '0.7',
+        '--timeout',
+        '30000',
         '--debug',
-        '--tools', 'Read,Write',
-        '--allowed-tools', 'Bash',
-        '--denied-tools', 'WebSearch',
-        '--permission-mode', 'acceptEdits',
-        '--context', 'file1.txt',
-        '--context', 'file2.txt',
-        '--mcp-server', 'server1 --port 3000',
-        '--mcp-server', 'server2'
+        '--tools',
+        'Read,Write',
+        '--allowed-tools',
+        'Bash',
+        '--denied-tools',
+        'WebSearch',
+        '--permission-mode',
+        'acceptEdits',
+        '--context',
+        'file1.txt',
+        '--context',
+        'file2.txt',
+        '--mcp-server',
+        'server1 --port 3000',
+        '--mcp-server',
+        'server2'
       ];
+
+      expect(execa).toHaveBeenCalledWith('/usr/local/bin/claude-code', expectedArgs, expect.any(Object));
+    });
+
+    it('should include --add-dir flag when addDirectories is provided', async () => {
+      vi.mocked(which as any).mockResolvedValue('/usr/local/bin/claude-code');
+      vi.mocked(execa).mockReturnValue(mockProcess as any);
+
+      const options = {
+        addDirectories: ['/Users/toby/Code/workspace', '/tmp']
+      };
+
+      const transport = new SubprocessCLITransport('test prompt', options);
+      await transport.connect();
 
       expect(execa).toHaveBeenCalledWith(
         '/usr/local/bin/claude-code',
-        expectedArgs,
+        expect.arrayContaining(['--add-dir', '/Users/toby/Code/workspace /tmp']),
+        expect.any(Object)
+      );
+    });
+
+    it('should handle single directory in addDirectories', async () => {
+      vi.mocked(which as any).mockResolvedValue('/usr/local/bin/claude-code');
+      vi.mocked(execa).mockReturnValue(mockProcess as any);
+
+      const options = {
+        addDirectories: ['/single/directory']
+      };
+
+      const transport = new SubprocessCLITransport('test prompt', options);
+      await transport.connect();
+
+      expect(execa).toHaveBeenCalledWith(
+        '/usr/local/bin/claude-code',
+        expect.arrayContaining(['--add-dir', '/single/directory']),
         expect.any(Object)
       );
     });
@@ -183,7 +227,10 @@ describe('SubprocessCLITransport', () => {
 
       const messages = [
         { type: 'message', data: { type: 'user', content: 'Hello' } },
-        { type: 'message', data: { type: 'assistant', content: [{ type: 'text', text: 'Hi!' }] } },
+        {
+          type: 'message',
+          data: { type: 'assistant', content: [{ type: 'text', text: 'Hi!' }] }
+        },
         { type: 'end' }
       ];
 
@@ -242,7 +289,12 @@ describe('SubprocessCLITransport', () => {
       setTimeout(() => {
         stdoutStream.push('\n');
         stdoutStream.push('   \n');
-        stdoutStream.push(JSON.stringify({ type: 'message', data: { type: 'user', content: 'Hello' } }) + '\n');
+        stdoutStream.push(
+          JSON.stringify({
+            type: 'message',
+            data: { type: 'user', content: 'Hello' }
+          }) + '\n'
+        );
         stdoutStream.push('\n');
         stdoutStream.push(JSON.stringify({ type: 'end' }) + '\n');
         stdoutStream.push(null);
