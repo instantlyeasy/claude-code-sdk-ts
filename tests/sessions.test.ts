@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { claude, QueryBuilder } from '../src/fluent.js';
+import { claude } from '../src/fluent.js';
 import { ResponseParser } from '../src/parser.js';
 import { query } from '../src/index.js';
 import * as baseModule from '../src/index.js';
@@ -240,6 +240,7 @@ describe('Session Management', () => {
     it('should handle invalid sessionId gracefully', async () => {
       // Mock the query to throw an error like the CLI transport would for invalid session
       mockQuery.mockImplementation(async function* () {
+        yield; // Add yield to satisfy generator requirement
         throw new Error('Invalid session ID: session-does-not-exist');
       });
 
@@ -252,7 +253,7 @@ describe('Session Management', () => {
       const generator = query('Test invalid session', options);
 
       await expect(async () => {
-        for await (const message of generator) {
+        for await (const _message of generator) {
           // This should not execute
         }
       }).rejects.toThrow('Invalid session ID: session-does-not-exist');
@@ -423,6 +424,7 @@ describe('Session Management', () => {
     it('should handle invalid session ID gracefully', async () => {
       // Mock the query to throw a ProcessError like the CLI transport would
       mockQuery.mockImplementation(async function* () {
+        yield; // Add yield to satisfy generator requirement
         throw new Error('Claude Code CLI exited with code 1');
       });
 
