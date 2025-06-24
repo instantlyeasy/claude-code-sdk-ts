@@ -1,7 +1,7 @@
-import { claude } from '@instantlyeasy/claude-code-sdk-ts';
+import { claude, query } from '@instantlyeasy/claude-code-sdk-ts';
 
 // Example 1: getSessionId()
-async function getSessionExample() {
+async function getSessionIdExample() {
   console.log('=== getSessionId Example ===\n');
 
   const parser = claude().withModel('sonnet').skipPermissions().query('Say hello in 3 different languages');
@@ -29,28 +29,77 @@ async function withSessionIdExample() {
   console.log('Second number:', secondNumber);
 }
 
-// Example 3: withSession()
-async function withSessionExample() {
-  console.log('\n=== withSession Example ===\n');
+// Example 3: Classic API with sessionId option
+async function classicAPIExample() {
+  console.log('\n=== Classic API with sessionId Example ===\n');
 
-  const session = claude().withModel('sonnet').skipPermissions().withSession();
+  // Step 1: Start a conversation using classic API to establish a session
+  console.log('Step 1: Starting initial conversation with classic API...');
 
-  const parser = session.query('Tell me a random card from the deck');
+  let sessionId = null;
+  let firstResponse = '';
 
-  const firstCard = await parser.asText();
+  const initialOptions = {
+    model: 'sonnet',
+    permissionMode: 'bypassPermissions'
+  };
 
-  const secondCard = await session.query('Which card did you pick?').asText();
+  for await (const message of query(
+    'Pick a completely random card from a standard deck of 52 playing cards',
+    initialOptions
+  )) {
+    // Extract session ID from any message that has it
+    if (message.session_id) {
+      sessionId = message.session_id;
+    }
 
-  console.log('First card:', firstCard);
-  console.log('Second card:', secondCard);
+    if (message.type === 'assistant') {
+      for (const block of message.content) {
+        if (block.type === 'text') {
+          firstResponse += block.text;
+        }
+      }
+    }
+  }
+
+  console.log('First response:', firstResponse);
+  console.log('Extracted session ID:', sessionId);
+
+  // Step 2: Continue the conversation using the extracted session ID
+  if (sessionId) {
+    console.log('\nStep 2: Continuing conversation with session ID...');
+
+    const continueOptions = {
+      sessionId: sessionId,
+      model: 'sonnet',
+      permissionMode: 'bypassPermissions'
+    };
+
+    let secondResponse = '';
+
+    for await (const message of query('Which card did you pick?', continueOptions)) {
+      if (message.type === 'assistant') {
+        for (const block of message.content) {
+          if (block.type === 'text') {
+            secondResponse += block.text;
+          }
+        }
+      }
+    }
+
+    console.log('Second response:', secondResponse);
+    console.log('\n✅ Classic API session management working properly!');
+  } else {
+    console.log('❌ Could not extract session ID from first conversation.');
+  }
 }
 
 // Run all examples
 async function main() {
   try {
-    await getSessionExample();
+    await getSessionIdExample();
     await withSessionIdExample();
-    //await withSessionExample();
+    await classicAPIExample();
   } catch (error) {
     console.error('Error:', error);
   }

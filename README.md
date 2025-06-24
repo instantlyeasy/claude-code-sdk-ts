@@ -67,11 +67,12 @@ Maintain conversation context across multiple queries with built-in session hand
 ```javascript
 import { claude } from '@instantlyeasy/claude-code-sdk-ts';
 
-// Automatic session management (recommended)
-const session = claude().withModel('sonnet').skipPermissions().withSession();
-
-const firstResponse = await session.query('Pick a random number from 1-100').asText();
-const secondResponse = await session.query('What number did you pick?').asText();
+// Session management with explicit session ID
+const builder = claude().withModel('sonnet').skipPermissions();
+const parser = builder.query('Pick a random number from 1-100');
+const sessionId = await parser.getSessionId();
+const firstResponse = await parser.asText();
+const secondResponse = await builder.withSessionId(sessionId).query('What number did you pick?').asText();
 // Claude remembers the number from the first query
 
 // Manual session management
@@ -162,9 +163,6 @@ const builder = claude()
   .onMessage(handler) // Add event handlers
   .withSessionId('session-id') // Continue existing session
   .query('Your prompt'); // Execute query
-
-// Or create a session builder for automatic session management
-const session = builder.withSession();
 ```
 
 #### Response Parsing Methods

@@ -172,20 +172,6 @@ export class QueryBuilder {
   }
 
   /**
-   * Create a session builder that maintains session context across queries
-   *
-   * @example
-   * ```typescript
-   * const session = claude().withModel('sonnet').withSession();
-   * const first = await session.query('Tell me a number').asText();
-   * const second = await session.query('What number did you pick?').asText();
-   * ```
-   */
-  withSession(): Session {
-    return new Session(this.options, this.messageHandlers, this.logger);
-  }
-
-  /**
    * Execute query and return raw async generator (for backward compatibility)
    */
   async *queryRaw(prompt: string): AsyncGenerator<Message> {
@@ -214,82 +200,6 @@ export class QueryBuilder {
    */
   static create(): QueryBuilder {
     return new QueryBuilder();
-  }
-}
-
-/**
- * Session-aware parser that extracts and stores session ID after consumption
- */
-class SessionAwareParser extends ResponseParser {
-  constructor(
-    generator: AsyncGenerator<Message>,
-    handlers: Array<(message: Message) => void>,
-    logger: Logger | undefined,
-    private onSessionId: (sessionId: string | null) => void
-  ) {
-    super(generator, handlers, logger);
-  }
-
-  // Override consume to extract session ID - all other methods call this internally
-  protected async consume(): Promise<void> {
-    await super.consume();
-
-    // Extract session ID directly from messages to avoid calling getSessionId()
-    // which would call consume() again
-    let sessionId: string | null = null;
-
-    for (const msg of this.messages) {
-      if (msg.session_id) {
-        sessionId = msg.session_id;
-        break;
-      }
-
-      // Also check system messages with session data
-      if (msg.type === 'system' && msg.data?.session_id) {
-        sessionId = msg.data.session_id;
-        break;
-      }
-    }
-
-    this.onSessionId(sessionId);
-  }
-}
-
-/**
- * Session builder that maintains session context across multiple queries
- */
-export class Session extends QueryBuilder {
-  private sessionId: string | null = null;
-
-  constructor(
-    parentOptions: ClaudeCodeOptions,
-    parentHandlers: Array<(message: Message) => void>,
-    parentLogger?: Logger
-  ) {
-    super();
-    this.options = { ...parentOptions };
-    this.messageHandlers = [...parentHandlers];
-    this.logger = parentLogger;
-  }
-
-  /**
-   * Execute query with automatic session management
-   * First query establishes session, subsequent queries use stored session ID
-   */
-  query(prompt: string): ResponseParser {
-    if (this.sessionId) {
-      // Use existing session for subsequent queries
-      this.options.sessionId = this.sessionId;
-      return super.query(prompt);
-    } else {
-      // First query - establish session and capture session ID
-      const generator = baseQuery(prompt, this.options);
-      return new SessionAwareParser(generator, this.messageHandlers, this.logger, sessionId => {
-        if (sessionId) {
-          this.sessionId = sessionId;
-        }
-      });
-    }
   }
 }
 
