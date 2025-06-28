@@ -1,5 +1,6 @@
 import { InternalClient } from './_internal/client.js';
 import type { ClaudeCodeOptions, Message } from './types.js';
+import type { InterceptorConfig } from './interceptors.js';
 
 /**
  * Query Claude Code with a prompt and options.
@@ -38,15 +39,17 @@ import type { ClaudeCodeOptions, Message } from './types.js';
  */
 export async function* query(
   prompt: string,
-  options?: ClaudeCodeOptions
+  options?: ClaudeCodeOptions,
+  interceptorConfig?: InterceptorConfig
 ): AsyncGenerator<Message> {
-  const client = new InternalClient(prompt, options);
+  const client = new InternalClient(prompt, options, interceptorConfig);
   yield* client.processQuery();
 }
 
 // Re-export all types
 export * from './types.js';
 export * from './errors.js';
+export * from './interceptors.js';
 export { AbortError } from './errors.js';
 
 // Export enhanced error utilities

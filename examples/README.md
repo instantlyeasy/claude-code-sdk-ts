@@ -235,7 +235,7 @@ See [enhanced-features-demo.js](./enhanced-features-demo.js) for a complete demo
 
 See [production-features.js](./production-features.js) for:
 - Cancellable queries with AbortSignal
-- Read-only mode enforcement with `allowTools()`
+- Read-only mode enforcement with `allowTools([])`
 - Advanced logging with nested object support
 - Message vs token streaming clarification
 

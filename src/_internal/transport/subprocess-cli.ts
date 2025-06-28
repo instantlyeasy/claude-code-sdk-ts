@@ -278,14 +278,15 @@ export class SubprocessCLITransport {
       // Wait for process to exit
       try {
         await this.process;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { isCanceled?: boolean; name?: string };
         // Check if the process was cancelled/aborted
-        if (error.isCanceled || error.name === 'CancelError' || this.abortHandler?.wasAborted()) {
+        if (err.isCanceled || err.name === 'CancelError' || this.abortHandler?.wasAborted()) {
           // Throw a proper AbortError so it can be caught by the user
           throw new AbortError('Query was aborted via AbortSignal');
         }
         
-        const execError = error as { exitCode?: number; signal?: NodeJS.Signals };
+        const execError = err as Error & { exitCode?: number; signal?: NodeJS.Signals };
         if (execError.exitCode !== 0) {
           throw new ProcessError(
             `Claude Code CLI exited with code ${execError.exitCode}`,

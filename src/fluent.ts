@@ -10,6 +10,15 @@ import type {
   RoleDefinition,
   ContentBlock
 } from './types.js';
+import type { 
+  Interceptor, 
+  InterceptorConfig
+} from './interceptors.js';
+import { 
+  loggingInterceptor,
+  correlationInterceptor,
+  classificationInterceptor
+} from './interceptors.js';
 import { ResponseParser } from './parser.js';
 import { Logger } from './logger.js';
 import { PermissionManager } from './permissions/manager.js';
@@ -40,6 +49,7 @@ export class QueryBuilder {
   private roleManager: RoleManager;
   private rolePromptingTemplate?: string;
   private roleTemplateVariables?: Record<string, string>;
+  private interceptorConfig: InterceptorConfig = {};
 
   constructor() {
     this.permissionManager = new PermissionManager();
@@ -220,6 +230,78 @@ export class QueryBuilder {
   }
 
   /**
+   * Add an interceptor to the request/response lifecycle
+   * 
+   * @example
+   * ```typescript
+   * const result = await claude()
+   *   .withInterceptor(loggingInterceptor)
+   *   .withInterceptor(correlationInterceptor) 
+   *   .query('Hello Claude')
+   *   .asText();
+   * ```
+   */
+  withInterceptor(interceptor: Interceptor): this {
+    if (!this.interceptorConfig.interceptors) {
+      this.interceptorConfig.interceptors = [];
+    }
+    this.interceptorConfig.interceptors.push(interceptor);
+    return this;
+  }
+
+  /**
+   * Add multiple interceptors at once
+   */
+  withInterceptors(interceptors: Interceptor[]): this {
+    if (!this.interceptorConfig.interceptors) {
+      this.interceptorConfig.interceptors = [];
+    }
+    this.interceptorConfig.interceptors.push(...interceptors);
+    return this;
+  }
+
+  /**
+   * Enable built-in interceptors for common use cases
+   * 
+   * @example
+   * ```typescript
+   * // Enable logging and correlation tracking
+   * const result = await claude()
+   *   .withBuiltinInterceptors(['logging', 'correlation'])
+   *   .query('Analyze this code')
+   *   .asText();
+   * ```
+   */
+  withBuiltinInterceptors(types: Array<'logging' | 'correlation' | 'classification'>): this {
+    const builtins = {
+      logging: loggingInterceptor,
+      correlation: correlationInterceptor,
+      classification: classificationInterceptor
+    };
+    
+    for (const type of types) {
+      this.withInterceptor(builtins[type]);
+    }
+    return this;
+  }
+
+  /**
+   * Configure interceptor timeout and other settings
+   */
+  withInterceptorConfig(config: Partial<InterceptorConfig>): this {
+    this.interceptorConfig = { ...this.interceptorConfig, ...config };
+    return this;
+  }
+
+  /**
+   * Enable debug mode for interceptors
+   */
+  withInterceptorDebug(enabled = true): this {
+    this.interceptorConfig.debug = enabled;
+    return this;
+  }
+
+  /**
    * Set MCP server permission
    */
   withMCPServerPermission(serverName: string, permission: MCPServerPermission): this {
@@ -335,7 +417,7 @@ export class QueryBuilder {
     }
     
     const parser = new ResponseParser(
-      baseQuery(finalPrompt, finalOptions),
+      baseQuery(finalPrompt, finalOptions, this.interceptorConfig),
       this.messageHandlers,
       this.logger
     );
@@ -368,7 +450,7 @@ export class QueryBuilder {
     
     this.logger?.info('Starting query', { prompt: finalPrompt, options: finalOptions });
     
-    for await (const message of baseQuery(finalPrompt, finalOptions)) {
+    for await (const message of baseQuery(finalPrompt, finalOptions, this.interceptorConfig)) {
       this.logger?.debug('Received message', { type: message.type });
       
       // Run handlers

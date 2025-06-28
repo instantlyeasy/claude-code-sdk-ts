@@ -1,6 +1,6 @@
 {
   "name": "@instantlyeasy/claude-code-sdk-ts",
-  "version": "0.3.3",
+  "version": "0.4.0-beta.1",
   "description": "Unofficial TypeScript port of the official Python Claude Code SDK",
   "type": "module",
   "main": "dist/index.js",

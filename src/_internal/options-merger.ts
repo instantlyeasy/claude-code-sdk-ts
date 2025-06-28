@@ -29,12 +29,12 @@ export function applyEnvironmentOptions(
   
   // Apply verbose from env if not set
   if (!('verbose' in merged) && envOptions.verbose !== undefined) {
-    (merged as any).verbose = envOptions.verbose;
+    (merged as ClaudeCodeOptions & { verbose?: boolean }).verbose = envOptions.verbose;
   }
   
   // Apply logLevel from env if not set
   if (!('logLevel' in merged) && envOptions.logLevel !== undefined) {
-    (merged as any).logLevel = envOptions.logLevel;
+    (merged as ClaudeCodeOptions & { logLevel?: number }).logLevel = envOptions.logLevel;
   }
   
   // Note: We don't apply nodeEnv to the options as it's not part of ClaudeCodeOptions

@@ -81,16 +81,20 @@ export class ConsoleLogger implements Logger {
 
     switch (entry.level) {
       case LogLevel.ERROR:
+        // eslint-disable-next-line no-console
         console.error(...args);
         break;
       case LogLevel.WARN:
+        // eslint-disable-next-line no-console
         console.warn(...args);
         break;
       case LogLevel.INFO:
+        // eslint-disable-next-line no-console
         console.info(...args);
         break;
       case LogLevel.DEBUG:
       case LogLevel.TRACE:
+        // eslint-disable-next-line no-console
         console.log(...args);
         break;
     }
@@ -149,6 +153,7 @@ export class ConsoleLogger implements Logger {
 export class JSONLogger implements Logger {
   constructor(
     private minLevel: LogLevel = LogLevel.INFO,
+    // eslint-disable-next-line no-console
     private output: (json: string) => void = console.log
   ) {}
 

@@ -45,7 +45,7 @@ claude()
 claude()
   .allowTools('Read', 'Write', 'Edit')    // Explicitly allow tools
   .denyTools('Bash', 'WebSearch')         // Explicitly deny tools
-  .allowTools()                            // No arguments = read-only mode (denies all tools)
+  .allowTools([])                         // Empty array = read-only mode (denies all tools)
 ```
 
 ### Permissions

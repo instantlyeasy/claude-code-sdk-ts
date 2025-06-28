@@ -8,7 +8,14 @@
 
 Unofficial TypeScript SDK for [Claude Code](https://github.com/anthropics/claude-code) - the powerful CLI tool for interacting with Claude.
 
-**✨ What's New in v0.3.3:**
+**✨ What's New in v0.4.0-beta:**
+- 🔌 **Interceptor System** - Middleware hooks for Claudeware integration
+- 🛠️ **Zero-latency hooks** at 5 key points: pre-process, stream, post-process, error, context
+- 🎯 **Claudeware Ready** - Built specifically for seamless Claudeware middleware integration
+- 📊 **Stream Analytics** - Real-time analysis without blocking responses
+- 🔗 **Context Compatibility** - Strict superset of Claudeware's context interface
+
+**Previous v0.3.3 Features:**
 - 🎬 **Interactive streaming session** with working visual typewriter effects
 - 🛡️ **Advanced error handling** with retry strategies and typed errors
 - 📊 **Token streaming analysis** with honest documentation about current behavior
@@ -122,7 +129,7 @@ await claude()
 
 // Read-only mode (no tools)
 await claude()
-  .allowTools() // Empty = deny all
+  .allowTools([]) // Empty array = deny all tools
   .query('Explain this architecture')
   .asText();
 ```
@@ -445,6 +452,76 @@ for await (const message of query('Hello')) {
 
 However, we recommend the fluent API for new projects. See [Migration Guide](docs/FLUENT_API.md#migration-guide).
 
+## 🔌 Interceptor System (v0.4.0-beta)
+
+The SDK now includes a powerful interceptor system designed for **Claudeware** integration and custom middleware:
+
+### Basic Usage
+
+```javascript
+import { claude, loggingInterceptor, correlationInterceptor } from '@instantlyeasy/claude-code-sdk-ts';
+
+const result = await claude()
+  .withInterceptor(loggingInterceptor)
+  .withInterceptor(correlationInterceptor)
+  .withInterceptorDebug(true)
+  .query('Create a hello.txt file')
+  .asText();
+```
+
+### Built-in Interceptors
+
+```javascript
+// Enable common interceptors quickly
+const result = await claude()
+  .withBuiltinInterceptors(['logging', 'correlation', 'classification'])
+  .query('Analyze this code')
+  .asText();
+```
+
+### Custom Interceptors
+
+```javascript
+const timingInterceptor = async (request, context, next) => {
+  const startTime = Date.now();
+  const response = await next(request, context);
+  console.log(`Query took ${Date.now() - startTime}ms`);
+  return response;
+};
+
+const result = await claude()
+  .withInterceptor(timingInterceptor)
+  .query('Complex analysis')
+  .asText();
+```
+
+### Claudeware Integration
+
+Perfect for integrating with [Claudeware](https://github.com/instantlyeasy/claudeware) middleware:
+
+```javascript
+// Claudeware automatically injects its interceptor
+import { createClaudewareSDK } from '@timmytown/claudeware';
+
+const claude = createClaudewareSDK({
+  plugins: ['query-optimizer', 'analytics'],
+  debug: true
+});
+
+const result = await claude.query('Optimize this query').asText();
+// Automatically gets: query optimization, analytics, caching, PII protection
+```
+
+### Key Features
+
+- ✅ **Zero overhead** when no interceptors are used
+- ✅ **5 hook points**: pre-process, stream, post-process, error, context
+- ✅ **Stream-aware**: Real-time analysis without blocking responses  
+- ✅ **Error isolation**: Interceptor failures don't crash queries
+- ✅ **Claudeware ready**: Context is strict superset of Claudeware's
+
+See [Interceptor Documentation](docs/INTERCEPTORS.md) for complete details and examples.
+
 ## API Reference
 
 ### `claude(): QueryBuilder`
@@ -464,6 +541,11 @@ claude()
   .withLogger(logger: Logger)
   .withConfigFile(path: string)
   .withRole(name: string, vars?: Record<string, string>)
+  .withInterceptor(interceptor: Interceptor)                    // NEW: Add single interceptor
+  .withInterceptors(interceptors: Interceptor[])               // NEW: Add multiple interceptors
+  .withBuiltinInterceptors(types: string[])                    // NEW: Enable built-in interceptors
+  .withInterceptorConfig(config: Partial<InterceptorConfig>)   // NEW: Configure interceptors
+  .withInterceptorDebug(enabled?: boolean)                     // NEW: Enable interceptor debug mode
   .onMessage(handler: (msg: Message) => void)
   .onAssistant(handler: (msg: AssistantMessage) => void)
   .onToolUse(handler: (tool: ToolUseBlock) => void)
