@@ -69,6 +69,17 @@ export {
   type LogEntry 
 } from './logger.js';
 
+// Export role system
+export {
+  roleRegistry,
+  applyRole,
+  getRoleDefaultPrompt,
+  initializeBuiltInRoles,
+  builtInRoles,
+  type RoleConfig,
+  type RoleRegistry
+} from './roles.js';
+
 // Export enhanced features (functions and classes only, types come from types.js)
 export {
   // Error handling

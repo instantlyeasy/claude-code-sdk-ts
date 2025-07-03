@@ -4,17 +4,12 @@ import type {
   Message, 
   ToolName, 
   PermissionMode,
-  MCPServerPermission,
   MCPServerPermissionConfig,
-  MCPConfigSchema,
-  RoleDefinition,
   ContentBlock
 } from './types.js';
 import { ResponseParser } from './parser.js';
 import { Logger } from './logger.js';
-import { PermissionManager } from './permissions/manager.js';
-import { ConfigLoader } from './config/loader.js';
-import { RoleManager } from './roles/manager.js';
+import { applyRole, getRoleDefaultPrompt, roleRegistry, type RoleConfig } from './roles.js';
 
 /**
  * Fluent API for building Claude Code queries with chainable methods
@@ -35,16 +30,9 @@ export class QueryBuilder {
   private options: ClaudeCodeOptions = {};
   private messageHandlers: Array<(message: Message) => void> = [];
   private logger?: Logger;
-  private permissionManager: PermissionManager;
-  private configLoader: ConfigLoader;
-  private roleManager: RoleManager;
-  private rolePromptingTemplate?: string;
-  private roleTemplateVariables?: Record<string, string>;
+  private currentRole?: string;
 
   constructor() {
-    this.permissionManager = new PermissionManager();
-    this.configLoader = new ConfigLoader();
-    this.roleManager = new RoleManager();
   }
 
   /**
@@ -220,122 +208,53 @@ export class QueryBuilder {
   }
 
   /**
-   * Set MCP server permission
-   */
-  withMCPServerPermission(serverName: string, permission: MCPServerPermission): this {
-    this.permissionManager.setMCPServerPermission(serverName, permission);
-    return this;
-  }
-
-  /**
-   * Set multiple MCP server permissions
+   * Set MCP server permissions
    */
   withMCPServerPermissions(permissions: MCPServerPermissionConfig): this {
-    this.permissionManager.setMCPServerPermissions(permissions);
-    return this;
-  }
-
-  /**
-   * Load configuration from file
-   */
-  async withConfigFile(filePath: string): Promise<this> {
-    const config = await this.configLoader.loadFromFile(filePath);
-    this.applyConfig(config);
-    return this;
-  }
-
-  /**
-   * Apply configuration object
-   */
-  withConfig(config: MCPConfigSchema): this {
-    this.configLoader.validateConfig(config);
-    this.applyConfig(config);
-    return this;
-  }
-
-  /**
-   * Load roles from file
-   */
-  async withRolesFile(filePath: string): Promise<this> {
-    await this.roleManager.loadFromFile(filePath);
+    this.options.mcpServerPermissions = { ...this.options.mcpServerPermissions, ...permissions };
     return this;
   }
 
   /**
    * Apply a role by name
    */
-  withRole(roleName: string): this;
-  /**
-   * Apply a role definition directly with template variables
-   */
-  withRole(role: RoleDefinition, templateVariables?: Record<string, string>): this;
-  withRole(
-    roleOrName: string | RoleDefinition, 
-    templateVariables?: Record<string, string>
-  ): this {
-    if (typeof roleOrName === 'string') {
-      const options = this.roleManager.applyRole(roleOrName, this.options);
-      this.options = options;
-      
-      // Store role template info if available
-      const role = this.roleManager.getRole(roleOrName);
-      if (role?.promptingTemplate) {
-        this.rolePromptingTemplate = role.promptingTemplate;
-      }
-      if (role?.systemPrompt) {
-        this.options.systemPrompt = role.systemPrompt;
-      }
-    } else {
-      // Add role to manager and apply
-      this.roleManager.addRole(roleOrName);
-      const options = this.roleManager.applyRole(roleOrName.name, this.options);
-      this.options = options;
-      
-      if (roleOrName.promptingTemplate) {
-        this.rolePromptingTemplate = roleOrName.promptingTemplate;
-        this.roleTemplateVariables = templateVariables;
-      }
-      if (roleOrName.systemPrompt) {
-        this.options.systemPrompt = roleOrName.systemPrompt;
-      }
-    }
-    
+  withRole(roleName: string): this {
+    this.currentRole = roleName;
+    this.options = applyRole(roleName, this.options);
     return this;
   }
 
   /**
-   * Apply configuration to options
+   * Register a new role and optionally apply it
    */
-  private applyConfig(config: MCPConfigSchema): void {
-    this.options = this.configLoader.mergeWithOptions(config, this.options);
+  defineRole(role: RoleConfig, apply = false): this {
+    roleRegistry.register(role);
+    if (apply) {
+      return this.withRole(role.name);
+    }
+    return this;
+  }
+
+  /**
+   * List available roles
+   */
+  getAvailableRoles(): RoleConfig[] {
+    return roleRegistry.list();
   }
 
   /**
    * Execute query and return response parser
    */
-  query(prompt: string): ResponseParser {
-    // Apply MCP server permissions
-    const finalOptions = this.permissionManager.applyToOptions(this.options);
+  query(prompt?: string): ResponseParser {
+    // Use role's default prompt if no prompt provided
+    const finalPrompt = prompt || (this.currentRole ? getRoleDefaultPrompt(this.currentRole) : undefined);
     
-    // Apply prompting template if available
-    let finalPrompt = prompt;
-    if (this.rolePromptingTemplate && this.roleTemplateVariables) {
-      const templatedPrompt = this.rolePromptingTemplate.replace(
-        /\$\{([^}]+)\}/g, 
-        (match, varName) => this.roleTemplateVariables![varName] || match
-      );
-      
-      if (finalOptions.systemPrompt) {
-        finalPrompt = `${finalOptions.systemPrompt}\n\n${templatedPrompt}\n\n${prompt}`;
-      } else {
-        finalPrompt = `${templatedPrompt}\n\n${prompt}`;
-      }
-    } else if (finalOptions.systemPrompt) {
-      finalPrompt = `${finalOptions.systemPrompt}\n\n${prompt}`;
+    if (!finalPrompt) {
+      throw new Error('No prompt provided and no default prompt available from role');
     }
     
     const parser = new ResponseParser(
-      baseQuery(finalPrompt, finalOptions),
+      baseQuery(finalPrompt, this.options),
       this.messageHandlers,
       this.logger
     );
@@ -345,30 +264,17 @@ export class QueryBuilder {
   /**
    * Execute query and return raw async generator (for backward compatibility)
    */
-  async *queryRaw(prompt: string): AsyncGenerator<Message> {
-    // Apply MCP server permissions
-    const finalOptions = this.permissionManager.applyToOptions(this.options);
+  async *queryRaw(prompt?: string): AsyncGenerator<Message> {
+    // Use role's default prompt if no prompt provided
+    const finalPrompt = prompt || (this.currentRole ? getRoleDefaultPrompt(this.currentRole) : undefined);
     
-    // Apply prompting template if available
-    let finalPrompt = prompt;
-    if (this.rolePromptingTemplate && this.roleTemplateVariables) {
-      const templatedPrompt = this.rolePromptingTemplate.replace(
-        /\$\{([^}]+)\}/g, 
-        (match, varName) => this.roleTemplateVariables![varName] || match
-      );
-      
-      if (finalOptions.systemPrompt) {
-        finalPrompt = `${finalOptions.systemPrompt}\n\n${templatedPrompt}\n\n${prompt}`;
-      } else {
-        finalPrompt = `${templatedPrompt}\n\n${prompt}`;
-      }
-    } else if (finalOptions.systemPrompt) {
-      finalPrompt = `${finalOptions.systemPrompt}\n\n${prompt}`;
+    if (!finalPrompt) {
+      throw new Error('No prompt provided and no default prompt available from role');
     }
     
-    this.logger?.info('Starting query', { prompt: finalPrompt, options: finalOptions });
+    this.logger?.info('Starting query', { prompt: finalPrompt, options: this.options });
     
-    for await (const message of baseQuery(finalPrompt, finalOptions)) {
+    for await (const message of baseQuery(finalPrompt, this.options)) {
       this.logger?.debug('Received message', { type: message.type });
       
       // Run handlers

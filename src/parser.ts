@@ -149,6 +149,30 @@ export class ResponseParser {
   }
 
   /**
+   * Get the response formatted as Markdown
+   * Preserves formatting, code blocks, lists, and other Markdown elements
+   */
+  async asMarkdown(): Promise<string> {
+    await this.consume();
+    
+    const markdownParts: string[] = [];
+    
+    for (const msg of this.messages) {
+      if (msg.type === 'assistant') {
+        for (const block of msg.content) {
+          if (block.type === 'text') {
+            // The text content from Claude is already in Markdown format
+            markdownParts.push(block.text);
+          }
+        }
+      }
+    }
+    
+    // Join with double newlines to preserve paragraph separation
+    return markdownParts.join('\n\n').trim();
+  }
+
+  /**
    * Get usage statistics
    */
   async getUsage(): Promise<UsageStats | null> {
