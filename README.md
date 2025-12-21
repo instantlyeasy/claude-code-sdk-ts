@@ -47,6 +47,8 @@ console.log(response); // "Hello World!"
 
 ## Authentication
 
+### Option 1: Claude CLI Authentication (Recommended)
+
 This SDK delegates all authentication to the Claude CLI:
 
 ```bash
@@ -54,7 +56,65 @@ This SDK delegates all authentication to the Claude CLI:
 claude login
 ```
 
-The SDK does not handle authentication directly. If you see authentication errors, authenticate using the Claude CLI first.
+### Option 2: Programmatic Authentication (New!)
+
+For programmatic authentication without the CLI, use the built-in OAuth flow:
+
+```javascript
+import { startAuth, isAuthenticated, getAccessToken } from '@instantlyeasy/claude-code-sdk-ts';
+
+// Check if already authenticated
+if (await isAuthenticated()) {
+  console.log('Already authenticated!');
+  const token = await getAccessToken();
+} else {
+  // Start OAuth flow
+  const { url, waitForCode } = startAuth();
+  
+  console.log('Open this URL in your browser:');
+  console.log(url);
+  
+  // User opens URL, authorizes, and copies the code
+  const code = '...'; // Get from user input
+  await waitForCode(code);
+  
+  console.log('Authentication successful!');
+}
+```
+
+Run the complete example:
+
+```bash
+node examples/auth-example.js
+```
+
+The programmatic auth flow:
+1. Generates a secure OAuth URL with PKCE
+2. Stores credentials in `~/.claude/credentials.json`
+3. Automatically handles token refresh
+4. Provides convenient helper functions
+
+### Authentication Classes
+
+For advanced use cases, use the authentication classes directly:
+
+```javascript
+import { ClaudeAuth, AnthropicAuth } from '@instantlyeasy/claude-code-sdk-ts';
+
+const auth = new ClaudeAuth();
+
+// Start auth flow
+const { url, waitForCode } = auth.startAuthFlow();
+
+// Check authentication status
+const isAuth = await auth.isAuthenticated();
+
+// Get access token (refreshes if needed)
+const token = await auth.getAccessToken();
+
+// Logout
+await auth.logout();
+```
 
 ## Core Features
 
@@ -419,6 +479,7 @@ Comprehensive examples are available in the [examples directory](./examples):
 - **[fluent-api-demo.js](./examples/fluent-api-demo.js)** - Complete fluent API showcase
 - **[sessions.js](./examples/sessions.js)** - Session management patterns
 - **[yaml-config-demo.js](./examples/yaml-config-demo.js)** - Configuration examples
+- **[auth-example.js](./examples/auth-example.js)** - 🔐 **Authentication flow example**
 
 ### **Advanced Features** ([new-features directory](./examples/fluent-api/new-features/))
 - **[interactive-streaming.js](./examples/fluent-api/new-features/interactive-streaming.js)** - 🎬 **Interactive chat with visual streaming**

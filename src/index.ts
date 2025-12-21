@@ -1,4 +1,5 @@
 import { InternalClient } from './_internal/client.js';
+import { AuthAnthropic } from './auth/anthropic.js';
 import type { ClaudeCodeOptions, Message } from './types.js';
 
 /**
@@ -92,3 +93,7 @@ export {
   withRetry,
   ClaudeRetryExecutor
 } from './enhanced/index.js';
+
+
+export { AuthAnthropic };
+export { OAuthCredentials, validateCredentials, isValidCredentials } from './auth/validation.js';
