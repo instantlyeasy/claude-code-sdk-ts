@@ -15,9 +15,16 @@ if (process.env.MOCK_ARGV_FILE) {
   try { writeFileSync(process.env.MOCK_ARGV_FILE, JSON.stringify(process.argv.slice(2))); } catch { /* ignore */ }
 }
 
-// Drain stdin (the prompt) so the writer's end() resolves cleanly.
+// Drain stdin (the prompt) so the writer's end() resolves cleanly, optionally
+// capturing it so tests can assert what prompt the SDK actually sent.
+let stdinBuf = '';
 process.stdin.resume();
-process.stdin.on('data', () => {});
+process.stdin.on('data', (d) => { stdinBuf += d; });
+process.stdin.on('end', () => {
+  if (process.env.MOCK_STDIN_FILE) {
+    try { writeFileSync(process.env.MOCK_STDIN_FILE, stdinBuf); } catch { /* ignore */ }
+  }
+});
 
 const emit = (obj) => {
   process.stdout.write(JSON.stringify(obj) + '\n');

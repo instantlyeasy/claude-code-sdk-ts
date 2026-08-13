@@ -27,7 +27,7 @@ import { query, ClaudeCodeOptions } from '@instantlyeasy/claude-code-sdk-ts';
 const options: ClaudeCodeOptions = {
   model: 'sonnet',
   allowedTools: ['Read', 'Write'],
-  permissionMode: 'acceptEdits',
+  permissionMode: 'acceptEdits', // honored — maps to the CLI's --permission-mode
   cwd: '/Users/me/projects'
 };
 
@@ -94,17 +94,23 @@ const options = {
 
 ## Session Management
 
+The SDK now yields the `system`/init message, so you can read the session id from
+its top-level `session_id` field (the id is also present on every other message,
+so any message would do — `system` just arrives first):
+
 ```javascript
 // First query
 let sessionId;
 for await (const message of query('Hello', { model: 'sonnet' })) {
+  // session_id is a TOP-LEVEL field on the message (not message.data.session_id)
   if (message.type === 'system' && message.session_id) {
     sessionId = message.session_id;
   }
   // Process messages
 }
 
-// Continue conversation
+// Continue conversation — pass the captured id back in via `sessionId`
+// (mapped to the CLI's --resume flag).
 for await (const message of query('What did I just say?', { 
   sessionId,
   model: 'sonnet' 
@@ -132,9 +138,13 @@ for await (const message of query('What did I just say?', {
 ```
 
 ### Tool Result
+
+The CLI delivers `tool_result` blocks inside `user` messages (not `assistant`
+messages), so check `message.type === 'user'` when scanning for them:
+
 ```javascript
 {
-  type: 'assistant',
+  type: 'user',
   content: [
     {
       type: 'tool_result',
@@ -184,6 +194,7 @@ async function analyzeCode() {
 
     for await (const message of query('Find all TODO comments', options)) {
       if (message.type === 'assistant') {
+        // Assistant messages carry text and tool_use blocks.
         for (const block of message.content) {
           if (block.type === 'text') {
             fullResponse += block.text;
@@ -192,7 +203,12 @@ async function analyzeCode() {
               tool: block.name,
               input: block.input
             });
-          } else if (block.type === 'tool_result') {
+          }
+        }
+      } else if (message.type === 'user') {
+        // tool_result blocks arrive inside user messages, not assistant ones.
+        for (const block of message.content) {
+          if (block.type === 'tool_result') {
             console.log(`Tool result:`, block.content);
           }
         }

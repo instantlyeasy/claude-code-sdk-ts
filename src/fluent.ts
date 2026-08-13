@@ -147,6 +147,14 @@ export class QueryBuilder {
   }
 
   /**
+   * Point at a specific `claude` binary instead of the SDK's discovery.
+   */
+  withExecutable(path: string): this {
+    this.options.pathToClaudeCodeExecutable = path;
+    return this;
+  }
+
+  /**
    * Enable debug mode
    */
   debug(enabled = true): this {
@@ -263,23 +271,26 @@ export class QueryBuilder {
   /**
    * Apply a role by name
    */
-  withRole(roleName: string): this;
+  withRole(roleName: string, templateVariables?: Record<string, string>): this;
   /**
    * Apply a role definition directly with template variables
    */
   withRole(role: RoleDefinition, templateVariables?: Record<string, string>): this;
   withRole(
-    roleOrName: string | RoleDefinition, 
+    roleOrName: string | RoleDefinition,
     templateVariables?: Record<string, string>
   ): this {
     if (typeof roleOrName === 'string') {
       const options = this.roleManager.applyRole(roleOrName, this.options);
       this.options = options;
-      
+
       // Store role template info if available
       const role = this.roleManager.getRole(roleOrName);
       if (role?.promptingTemplate) {
         this.rolePromptingTemplate = role.promptingTemplate;
+        // Store the variables so the template is actually interpolated
+        // (previously dropped for the string-name overload).
+        this.roleTemplateVariables = templateVariables;
       }
       if (role?.systemPrompt) {
         this.options.systemPrompt = role.systemPrompt;

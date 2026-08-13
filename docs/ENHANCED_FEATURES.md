@@ -8,12 +8,11 @@ This document provides comprehensive documentation for all the enhanced features
 2. [Token-Level Streaming](#token-level-streaming)
 3. [Retry Strategies](#retry-strategies)
 4. [Per-Call Tool Permissions](#per-call-tool-permissions)
-5. [OpenTelemetry Integration](#opentelemetry-integration)
-6. [MCP Server-Level Permissions](#mcp-server-level-permissions)
-7. [Configuration File Support](#configuration-file-support)
-8. [Roles and Personas System](#roles-and-personas-system)
-9. [Response Parser Utilities](#response-parser-utilities)
-10. [Advanced Logging Framework](#advanced-logging-framework)
+5. [MCP Server-Level Permissions](#mcp-server-level-permissions)
+6. [Configuration File Support](#configuration-file-support)
+7. [Roles and Personas System](#roles-and-personas-system)
+8. [Response Parser Utilities](#response-parser-utilities)
+9. [Advanced Logging Framework](#advanced-logging-framework)
 
 ## Typed Error Handling
 
@@ -69,14 +68,24 @@ try {
 ```typescript
 import { createTypedError } from '@instantlyeasy/claude-code-sdk-ts';
 
-// Create specific error types for testing or custom handling
-const rateLimitError = createTypedError('rate_limit_error', 'Too many requests', { 
-  retryAfter: 60 
-});
+// createTypedError(errorType, message, originalError?) builds a typed error.
+// Structured details (retryAfter, tool name, status code, ...) are PARSED FROM
+// THE MESSAGE, not passed in. The optional 3rd argument is only { code?, stack? }
+// used to preserve the original error's code/stack — it never sets those details.
 
-const toolError = createTypedError('tool_permission_error', 'Bash denied', { 
-  tool: 'Bash' 
-});
+// retryAfter is read from the message text (defaults to 60 if not present)
+const rateLimitError = createTypedError(
+  'rate_limit_error',
+  'Rate limit exceeded, retry after 30 seconds'
+);
+// rateLimitError.retryAfter === 30
+
+// The tool name is read from the message text (defaults to 'unknown')
+const toolError = createTypedError(
+  'tool_permission_error',
+  'Tool: Bash permission denied'
+);
+// toolError.tool === 'Bash'
 ```
 
 ### Error Recovery Patterns
@@ -165,16 +174,31 @@ for await (const chunk of tokenStream.tokens()) {
 const controller = tokenStream.getController();
 
 // Check current state
-console.log('State:', controller.getState()); // 'idle' | 'streaming' | 'paused' | 'completed' | 'error'
+console.log('State:', controller.getState()); // 'active' | 'paused' | 'aborted' | 'completed' | 'error'
 
 // Control streaming
 controller.pause();
 controller.resume();
-controller.cancel();
+controller.abort('user cancelled'); // stops the stream (optional reason)
 
-// Subscribe to state changes
-tokenStream.on('stateChange', (newState, oldState) => {
-  console.log(`State changed: ${oldState} -> ${newState}`);
+// Inspect controller flags
+console.log('Paused?', controller.isPaused);
+console.log('Aborted?', controller.isAborted);
+console.log('Abort reason:', controller.abortReason);
+
+// Pause / resume / abort fire on the CONTROLLER:
+controller.on('pause', () => console.log('Stream paused'));
+controller.on('resume', () => console.log('Stream resumed'));
+controller.on('abort', () => console.log('Stream aborted'));
+
+// token / complete / error / metrics fire on the token STREAM:
+tokenStream.on('complete', () => console.log('Stream completed'));
+tokenStream.on('error', (error) => console.error('Stream error:', error));
+
+// The 'metrics' event fires alongside token/complete/error and carries the
+// latest StreamMetrics (including the current `state`).
+tokenStream.on('metrics', (metrics) => {
+  console.log('State:', metrics.state, '| tokens:', metrics.tokensEmitted);
 });
 ```
 
@@ -206,9 +230,15 @@ const result = await retryExecutor.execute(
   }
 );
 
-// Get retry statistics
+// Get retry statistics (RetryExecutorStats)
 const stats = retryExecutor.getStats();
-console.log(`Success rate: ${stats.successCount}/${stats.totalAttempts}`);
+const successes = stats.successfulFirstAttempts + stats.successfulRetries;
+console.log(`Successes: ${successes}/${stats.totalExecutions} executions`);
+console.log(`First-try successes: ${stats.successfulFirstAttempts}`);
+console.log(`Recovered via retry: ${stats.successfulRetries}`);
+console.log(`Failures: ${stats.totalFailures}`);
+console.log(`Total retry attempts: ${stats.totalRetryAttempts}`);
+console.log(`Average attempts: ${stats.averageAttempts}, max: ${stats.maxAttempts}`);
 ```
 
 ### Linear Retry
@@ -218,8 +248,9 @@ import { createLinearRetryExecutor } from '@instantlyeasy/claude-code-sdk-ts';
 
 const linearRetry = createLinearRetryExecutor({
   maxAttempts: 3,
-  delay: 2000,      // Fixed 2 second delay
-  jitter: false     // No randomization
+  initialDelay: 2000,   // First retry waits 2 seconds
+  increment: 2000,      // Add 2 seconds each subsequent attempt
+  jitter: false         // No randomization
 });
 
 await linearRetry.execute(async () => {
@@ -245,17 +276,19 @@ await fibRetry.execute(async () => {
 
 ### Retry Helper Function
 
-```typescript
-import { withRetry } from '@instantlyeasy/claude-code-sdk-ts';
+`withRetry(fn, options)` returns a **wrapper function** — it does not run `fn`
+itself. Call the returned function to execute with retries.
 
-// Simple retry wrapper
-const result = await withRetry(
+```typescript
+import { withRetry, detectErrorType } from '@instantlyeasy/claude-code-sdk-ts';
+
+// withRetry returns a wrapped function; it does NOT run fn until you call it.
+const run = withRetry(
   async () => {
     return await claude().query('Generate code').asText();
   },
   {
     maxAttempts: 3,
-    strategy: 'exponential',
     initialDelay: 500,
     shouldRetry: (error, attempt) => {
       // Custom retry logic
@@ -264,59 +297,89 @@ const result = await withRetry(
     }
   }
 );
+
+const result = await run();
+
+// Or as a single expression — note the extra () that invokes the wrapper:
+const result2 = await withRetry(
+  async () => claude().query('Generate code').asText(),
+  { maxAttempts: 3, initialDelay: 500 }
+)();
 ```
+
+> Note: `withRetry` uses the exponential-backoff executor. `RetryOptions` has no
+> `strategy` field (that belongs to the advanced executors). To choose a
+> different backoff curve, use `createLinearRetryExecutor` /
+> `createFibonacciRetryExecutor` instead.
 
 ## Per-Call Tool Permissions
 
 Dynamic tool permission management for fine-grained control over tool usage.
+
+`createPermissionManager(options, rolePermissions?)` takes a `ClaudeCodeOptions`
+object (it reads `allowedTools` / `deniedTools` / `tools` from it) plus an
+optional map of role-level tool permissions. Permission checks are resolved in
+this priority order: query overrides → dynamic permissions → role permissions →
+global (options) permissions → default (`allow`).
 
 ### Basic Permission Management
 
 ```typescript
 import { createPermissionManager } from '@instantlyeasy/claude-code-sdk-ts';
 
+// The first argument is a ClaudeCodeOptions object.
 const permissionManager = createPermissionManager({
   allowedTools: ['Read', 'Grep', 'LS'],
   deniedTools: ['Bash', 'Write', 'Edit']
 });
 
-// Check if tool is allowed
-const canRead = await permissionManager.isToolAllowed('Read', {
-  userId: 'user123',
-  role: 'developer'
-});
+// isToolAllowed(tool, context, overrides?) — context is a QueryContext.
+// It returns a Promise<boolean>.
+const context = {
+  prompt: 'Read the project files',
+  timestamp: Date.now(),
+  userRole: 'developer'
+};
 
-// Get effective permissions
-const permissions = permissionManager.getEffectivePermissions();
-console.log('Allowed:', permissions.allowed);
-console.log('Denied:', permissions.denied);
+const canRead = await permissionManager.isToolAllowed('Read', context);   // true
+const canBash = await permissionManager.isToolAllowed('Bash', context);   // false
+
+// getEffectivePermissions(context, overrides?) returns a
+// Promise<Map<ToolName, PermissionResolution>> — one resolution per known tool.
+const effective = await permissionManager.getEffectivePermissions(context);
+for (const [tool, resolution] of effective) {
+  console.log(`${tool}: ${resolution.permission} (from ${resolution.source})`);
+}
 ```
 
 ### Dynamic Permissions
 
+Dynamic, per-call rules are supplied through the `overrides` argument (the third
+parameter), not the constructor. Each dynamic function receives the
+`QueryContext` and returns `'allow' | 'deny' | 'ask'`.
+
 ```typescript
 const permissionManager = createPermissionManager({
-  defaultPermission: 'ask',
-  toolPermissions: {
-    Read: 'allow',
-    Write: 'deny',
-    Edit: 'ask'
-  }
+  allowedTools: ['Read', 'Grep', 'LS'],
+  deniedTools: ['Bash']
 });
 
-// Override permissions per call
 const isAllowed = await permissionManager.isToolAllowed(
   'Write',
-  { userId: 'admin', role: 'admin' },
+  {
+    prompt: 'Update the config file',
+    timestamp: Date.now(),
+    userRole: 'admin'
+  },
   {
     // Dynamic permission based on context
     dynamicPermissions: {
       Write: async (context) => {
-        // Allow writes during business hours only
+        // Allow writes during business hours to admins only
         const hour = new Date().getHours();
         const isBusinessHours = hour >= 9 && hour < 17;
-        const isAdmin = context.role === 'admin';
-        
+        const isAdmin = context.userRole === 'admin';
+
         return (isBusinessHours && isAdmin) ? 'allow' : 'deny';
       }
     }
@@ -324,128 +387,28 @@ const isAllowed = await permissionManager.isToolAllowed(
 );
 ```
 
-### Permission Callbacks
+### Auditing Permission Decisions
+
+There is no permission-check callback option. Instead, every resolution is
+recorded and can be read back for auditing via `getResolutionHistory()`.
 
 ```typescript
 const permissionManager = createPermissionManager({
-  onPermissionCheck: async (tool, permission, context) => {
-    console.log(`Permission check: ${tool} -> ${permission}`);
-    
-    // Log to audit system
-    await auditLog.record({
-      tool,
-      permission,
-      user: context.userId,
-      timestamp: new Date()
-    });
-  }
-});
-```
-
-## OpenTelemetry Integration
-
-Comprehensive observability with OpenTelemetry support for metrics, traces, and logs.
-
-### Basic Setup
-
-```typescript
-import { createTelemetryProvider } from '@instantlyeasy/claude-code-sdk-ts';
-
-const telemetryProvider = createTelemetryProvider();
-
-await telemetryProvider.initialize({
-  serviceName: 'claude-app',
-  serviceVersion: '1.0.0',
-  environment: 'production',
-  endpoint: 'https://otel-collector.example.com',
-  headers: {
-    'x-auth-token': 'your-otel-token'
-  }
+  allowedTools: ['Read', 'Grep', 'LS'],
+  deniedTools: ['Bash', 'Write', 'Edit']
 });
 
-// Get a logger
-const logger = telemetryProvider.getLogger('main');
-```
+const context = { prompt: 'Analyze the repo', timestamp: Date.now(), userRole: 'developer' };
+await permissionManager.isToolAllowed('Write', context);
+await permissionManager.isToolAllowed('Read', context);
 
-### Distributed Tracing
-
-```typescript
-// Create spans for operations
-const span = logger.startSpan('process-request', {
-  attributes: {
-    'user.id': 'user123',
-    'request.type': 'analysis',
-    'model': 'opus'
-  }
-});
-
-try {
-  // Add events
-  span.addEvent('query-start');
-  
-  const result = await claude()
-    .withModel('opus')
-    .query('Analyze this data')
-    .asText();
-  
-  span.setAttribute('result.length', result.length);
-  span.setStatus('ok');
-  
-} catch (error) {
-  span.recordException(error);
-  span.setStatus('error', error.message);
-} finally {
-  span.end();
+// Inspect each PermissionResolution that was made
+for (const resolution of permissionManager.getResolutionHistory()) {
+  console.log(`${resolution.tool} -> ${resolution.permission} (source: ${resolution.source})`);
 }
-```
 
-### Metrics Collection
-
-```typescript
-// Record custom metrics
-logger.recordMetric('queries.total', 1, {
-  model: 'opus',
-  status: 'success'
-});
-
-logger.recordMetric('query.duration', 1234, {
-  model: 'opus',
-  operation: 'analysis'
-});
-
-// Get built-in metrics
-const queryMetrics = telemetryProvider.getQueryMetrics();
-console.log('Query metrics:', {
-  total: queryMetrics.totalQueries,
-  successful: queryMetrics.successfulQueries,
-  failed: queryMetrics.failedQueries,
-  avgDuration: queryMetrics.averageQueryDuration,
-  cacheHitRate: queryMetrics.cacheHits / queryMetrics.totalQueries
-});
-
-const toolMetrics = telemetryProvider.getToolMetrics();
-toolMetrics.forEach((metrics, tool) => {
-  console.log(`${tool}: ${metrics.executionCount} executions, ${metrics.errorRate}% errors`);
-});
-```
-
-### Context Propagation
-
-```typescript
-// Extract context from incoming request
-const incomingContext = TelemetryUtils.extractTraceContext(request.headers);
-
-// Create child logger with context
-const childLogger = logger.child(incomingContext);
-
-// Use in queries
-const span = childLogger.startSpan('claude-query', {
-  parent: incomingContext
-});
-
-// Inject context for downstream services
-const headers = {};
-TelemetryUtils.injectTraceContext(span.getSpanContext(), headers);
+// Clear the log when needed
+permissionManager.clearHistory();
 ```
 
 ## MCP Server-Level Permissions
@@ -965,7 +928,6 @@ try {
 
 ### 2. Use Appropriate Features
 - Use retry strategies for production reliability
-- Implement telemetry for observability
 - Configure permissions based on security requirements
 - Use roles for consistent behavior
 

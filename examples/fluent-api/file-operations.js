@@ -56,10 +56,9 @@ const batchResult = await claude()
 
 console.log(batchResult);
 
-// 5. File organization with MCP permissions
+// 5. File organization with explicit tool permissions
 console.log('\n5. File organization with safety:');
 const organizeResult = await claude()
-  .withMCPServerPermission('file-system-mcp', 'whitelist')
   .allowTools('Read', 'Write', 'LS', 'Glob')
   .denyTools('Bash') // Prevent shell commands
   .acceptEdits()

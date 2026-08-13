@@ -135,15 +135,28 @@ async function productionIntegrationExample() {
       });
     }
     
+    // The SDK's Logger interface requires error/warn/info/debug/trace.
+    // The ResponseParser calls warn() and debug() while consuming messages,
+    // so every method must exist or the query will throw at runtime.
     error(message, context) {
       this.log({ level: LogLevel.ERROR, message, timestamp: new Date(), context });
     }
-    
+
+    warn(message, context) {
+      this.log({ level: LogLevel.WARN, message, timestamp: new Date(), context });
+    }
+
     info(message, context) {
       this.log({ level: LogLevel.INFO, message, timestamp: new Date(), context });
     }
-    
-    // ... other methods
+
+    debug(message, context) {
+      this.log({ level: LogLevel.DEBUG, message, timestamp: new Date(), context });
+    }
+
+    trace(message, context) {
+      this.log({ level: LogLevel.TRACE, message, timestamp: new Date(), context });
+    }
   }
   
   const otelLogger = new OTELLogger();

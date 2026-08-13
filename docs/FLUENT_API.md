@@ -39,6 +39,27 @@ claude()
   .debug(true)              // Enable debug mode
 ```
 
+`withTimeout(ms)` is enforced: if the CLI does not finish within the given time,
+the query rejects with a `TimeoutError` (importable from the package root) that
+you can catch:
+
+```typescript
+import { claude, TimeoutError } from '@instantlyeasy/claude-code-sdk-ts';
+
+try {
+  const text = await claude()
+    .withTimeout(5000)
+    .query('Do something slow')
+    .asText();
+} catch (error) {
+  if (error instanceof TimeoutError) {
+    console.log('Query timed out:', error.message);
+  } else {
+    throw error;
+  }
+}
+```
+
 ### Tool Management
 
 ```typescript
@@ -429,10 +450,10 @@ const text = await claude()
 
 2. **Tool result extraction**:
 ```typescript
-// Before
+// Before — note tool_result blocks arrive inside `user` messages, not `assistant`
 const results = [];
 for await (const message of query('Read files', { allowedTools: ['Read'] })) {
-  if (message.type === 'assistant') {
+  if (message.type === 'user') {
     for (const block of message.content) {
       if (block.type === 'tool_result' && !block.is_error) {
         results.push(block.content);

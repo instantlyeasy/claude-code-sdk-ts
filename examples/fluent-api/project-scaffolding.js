@@ -118,13 +118,18 @@ async function createProject(projectType, projectName) {
 
 // Advanced scaffolding with configuration
 async function createConfiguredProject() {
+  // withConfigFile() is async (it reads + validates the file), so it returns a
+  // Promise<QueryBuilder>. Await it first, then chain the synchronous builder
+  // methods onto the resolved builder.
   const builder = await claude()
-    .withConfigFile('../config/json/mcpconfig.json')
+    .withConfigFile('../config/json/mcpconfig.json');
+
+  builder
     .withModel('opus')
     .allowTools('Write', 'Read', 'LS', 'Edit')
     .acceptEdits()
     .withTimeout(180000);
-  
+
   const result = await builder
     .query(`Create a full-stack application with:
       - Frontend: React with TypeScript, Vite, Tailwind CSS

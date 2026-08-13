@@ -15,6 +15,8 @@ This document describes three powerful new features added to the Claude Code SDK
 
 ## MCP Server-Level Permissions
 
+> **Deprecated and ignored as of v0.4.0.** MCP server-level permissions are built on the `mcpServerPermissions` option, which the installed `claude` CLI does not accept as a flag. The SDK now warns once and **ignores** it — `.withMCPServerPermission()`, `.withMCPServerPermissions()`, and the `mcpServers` blocks inside config files and roles have **no effect on the actual run**. This section is kept for reference only and the feature is slated for removal. To control tool access, use `.allowTools(...)` / `.denyTools(...)` (fluent) or the config `tools.allowed` / `tools.denied` lists instead.
+
 Control permissions at the MCP server level, managing all tools from a specific MCP server as a group.
 
 ### Basic Usage
@@ -98,14 +100,15 @@ Create an `mcpconfig.json` file:
 ### Loading Configuration
 
 ```typescript
-// Load from file
-const response = await claude()
-  .withConfigFile('./mcpconfig.json')
+// Load from file — withConfigFile is ASYNC (returns Promise<this>),
+// so await it on its own line before continuing the chain.
+const builder = await claude().withConfigFile('./mcpconfig.json');
+const response = await builder
   .query('Analyze project')
   .asText();
 
-// Or use inline configuration
-const response = await claude()
+// Or use inline configuration — withConfig is synchronous.
+const inlineResponse = await claude()
   .withConfig({
     version: '1.0',
     globalSettings: {
@@ -119,7 +122,7 @@ const response = await claude()
 
 ### Environment Variables
 
-Configuration files support environment variable expansion:
+Configuration files support environment variable expansion. `${VAR}` placeholders in string values are expanded from `process.env` at load time (this works as of v0.4.0):
 
 ```json
 {
@@ -131,6 +134,8 @@ Configuration files support environment variable expansion:
   }
 }
 ```
+
+> **Note:** Expansion is strict — if a referenced variable is not set in the environment, `withConfigFile()` / `withConfig()` throws `Environment variable <NAME> not found`. Make sure every `${VAR}` you reference is defined before loading the config.
 
 ## Roles/Personas System
 
@@ -144,18 +149,20 @@ const dataAnalystRole = {
   description: 'Expert data analyst',
   model: 'opus',
   permissions: {
-    mode: 'acceptEdits',
-    mcpServers: {
+    mode: 'acceptEdits',       // honored -> --permission-mode
+    mcpServers: {              // IGNORED (see MCP-server-permissions note above)
       'database-mcp': 'whitelist'
     },
     tools: {
-      allowed: ['Read', 'Query', 'Analyze'],
-      denied: ['Write', 'Delete']
+      allowed: ['Read', 'Query', 'Analyze'],  // honored -> --allowedTools
+      denied: ['Write', 'Delete']             // honored -> --disallowedTools
     }
   },
   promptingTemplate: 'You are a ${domain} analyst specializing in ${specialty}.',
-  systemPrompt: 'Provide data-driven insights.',
+  systemPrompt: 'Provide data-driven insights.', // honored -> --append-system-prompt
   context: {
+    // IGNORED in v0.4.0: maxTokens and temperature are not supported by the
+    // claude CLI. They are accepted for forward-compat but have no effect.
     maxTokens: 4000,
     temperature: 0.2
   }
@@ -207,8 +214,10 @@ Create a `roles.json` file:
 Load and use roles:
 
 ```typescript
-const response = await claude()
-  .withRolesFile('./roles.json')
+// withRolesFile is ASYNC (returns Promise<this>) — await it on its own line,
+// then apply a loaded role synchronously.
+const builder = await claude().withRolesFile('./roles.json');
+const response = await builder
   .withRole('seniorDeveloper')
   .query('Review this code')
   .asText();
@@ -249,52 +258,68 @@ Child roles inherit and can override parent properties. Tool permissions are mer
 ### Combining All Features
 
 ```typescript
-const response = await claude()
-  // Load configuration
-  .withConfigFile('./mcpconfig.json')
-  // Load roles
-  .withRolesFile('./roles.json')
-  // Apply a role
-  .withRole('securityAuditor')
-  // Add specific MCP permission
-  .withMCPServerPermission('logging-mcp', 'whitelist')
-  // Additional settings
-  .debug(true)
+// withConfigFile and withRolesFile are BOTH async — await each on its own line
+// before chaining the synchronous methods.
+let builder = await claude().withConfigFile('./mcpconfig.json'); // Load configuration
+builder = await builder.withRolesFile('./roles.json');          // Load roles
+
+const response = await builder
+  .withRole('securityAuditor')   // Apply a role (synchronous)
+  .debug(true)                   // Additional settings
   .onToolUse(tool => console.log(`Using: ${tool.name}`))
   .query('Audit authentication system')
   .asText();
 ```
 
-### Precedence Rules
+> Note: `.withMCPServerPermission()` / `.withMCPServerPermissions()` are omitted here
+> because they are ignored in v0.4.0 (see the deprecation note under
+> [MCP Server-Level Permissions](#mcp-server-level-permissions)).
 
-When combining features, settings are applied in this order (highest precedence first):
+### How settings combine (actual behavior)
 
-1. Programmatic API calls (e.g., `.withModel()`)
-2. Role-based settings
-3. Configuration file settings
-4. Default values
+The builder is **mutable and order-sensitive**: each method applies its effect to the accumulated options *immediately when you call it*, so **the last call to touch a given setting wins**. There is no separate precedence pass that re-ranks "sources" at query time.
+
+Two consequences are worth knowing:
+
+- **`withConfig` / `withConfigFile` override values already set.** When a config is applied, its `globalSettings` (`model`, `timeout`, `cwd`, `permissionMode`, `env`, ...) overwrite anything you set programmatically *before* the config call. Config `tools.allowed` / `tools.denied` are merged with — actually prepended to — any tools already configured.
+- **`withRole` also overrides values already set** at the point where you call it.
+
+Because it is call-order based, put the programmatic overrides you want to win *after* the `withConfig` / `withRole` calls:
+
+```typescript
+const builder = await claude().withConfigFile('./mcpconfig.json'); // config sets model: 'opus'
+const response = await builder
+  .withModel('sonnet') // applied AFTER config, so THIS wins
+  .query('...')
+  .asText();
+```
+
+Any setting that no call touches falls back to the CLI's own default.
 
 ### Security Best Practices
 
 ```typescript
-// Create a restricted role for untrusted operations
+// Create a restricted role for untrusted operations.
+// The actual enforcement here comes from tools.allowed / tools.denied — the
+// mcpServers block and context.maxTokens are IGNORED in v0.4.0, so do NOT
+// rely on them for security.
 const restrictedRole = {
   name: 'restricted',
   model: 'haiku',
   permissions: {
     mode: 'default',
-    mcpServers: {
+    mcpServers: {                 // IGNORED — no effect on the run
       'file-system-mcp': 'blacklist',
       'database-mcp': 'blacklist',
       'external-api-mcp': 'blacklist'
     },
     tools: {
-      allowed: ['Read'],
-      denied: ['Write', 'Edit', 'Delete', 'Bash', 'WebFetch']
+      allowed: ['Read'],                                    // enforced
+      denied: ['Write', 'Edit', 'Delete', 'Bash', 'WebFetch'] // enforced
     }
   },
   context: {
-    maxTokens: 1000
+    maxTokens: 1000               // IGNORED — no effect on the run
   }
 };
 ```
@@ -303,13 +328,15 @@ const restrictedRole = {
 
 ### QueryBuilder Methods
 
-#### MCP Server Permissions
+#### MCP Server Permissions (deprecated / ignored in v0.4.0)
+
+These methods still exist and chain, but the resulting `mcpServerPermissions` option is not passed to the CLI — it is warned about once and ignored. Do not depend on them.
 
 ```typescript
-// Set single permission
+// Set single permission (IGNORED at query time)
 .withMCPServerPermission(serverName: string, permission: MCPServerPermission): this
 
-// Set multiple permissions
+// Set multiple permissions (IGNORED at query time)
 .withMCPServerPermissions(permissions: MCPServerPermissionConfig): this
 ```
 
@@ -370,6 +397,8 @@ interface RoleDefinition {
   };
   promptingTemplate?: string;
   systemPrompt?: string;
+  // NOTE: `context` (maxTokens / temperature) is accepted but IGNORED in v0.4.0 —
+  // these are not supported by the claude CLI and have no effect on the run.
   context?: {
     maxTokens?: number;
     temperature?: number;
@@ -385,18 +414,20 @@ The new features include comprehensive error handling:
 
 ```typescript
 try {
-  await claude()
-    .withConfigFile('./invalid.json')
-    .query('test');
+  // withConfigFile is async and rejects on a bad/missing file, so await it
+  // directly — the error surfaces here, not from .query().
+  const builder = await claude().withConfigFile('./invalid.json');
+  await builder.query('test').asText();
 } catch (error) {
   // Handle configuration errors
   console.error('Config error:', error.message);
 }
 
 try {
-  await claude()
-    .withRole('nonExistentRole')
-    .query('test');
+  // withRole throws synchronously if the named role was never loaded, so load
+  // the roles file first, then apply the role.
+  const builder = await claude().withRolesFile('./roles.json');
+  await builder.withRole('nonExistentRole').query('test').asText();
 } catch (error) {
   // Handle role errors
   console.error('Role error:', error.message);
@@ -411,8 +442,11 @@ These features are fully backward compatible. Existing code continues to work wi
 // Original API still works
 const response = await query('Hello', { model: 'sonnet' });
 
-// New features are additive
-const response = await claude()
+// New features are additive. Note: withRole('developer') requires the role to
+// have been loaded first (e.g. via the async withRolesFile), otherwise it throws
+// "Role 'developer' not found".
+const builder = await claude().withRolesFile('./roles.json');
+const response = await builder
   .withModel('sonnet')  // Existing method
   .withRole('developer') // New feature
   .query('Hello')

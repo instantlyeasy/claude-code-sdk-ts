@@ -3,19 +3,20 @@
 /**
  * Enhanced Features Demo
  * 
- * This example demonstrates the new enhanced features added to Claude Code SDK:
+ * This example demonstrates the enhanced features available in the Claude Code SDK:
  * 1. Typed error handling
  * 2. Token-level streaming
  * 3. Per-call tool permissions
- * 4. OpenTelemetry integration
- * 5. Exponential backoff
+ * 4. Exponential backoff
+ *
+ * Note: run `npm install && npm run build` from the repo root first — these
+ * examples import from ../dist, which is gitignored and produced by the build.
  */
 
-import { 
+import {
   query,
   createTokenStream,
   createPermissionManager,
-  createTelemetryProvider,
   createRetryExecutor,
   isRateLimitError,
   isToolPermissionError
@@ -113,46 +114,8 @@ async function runDemo() {
   console.log(`\n⏰ Write permission (business hours only): ${isWriteAllowed ? '✅ Allowed' : '❌ Denied'}`);
   console.log();
 
-  // 4. OpenTelemetry Integration Demo
-  console.log('4️⃣ OpenTelemetry Integration');
-  console.log('-----------------------------');
-  const telemetryProvider = createTelemetryProvider();
-  await telemetryProvider.initialize({
-    serviceName: 'claude-sdk-demo',
-    serviceVersion: '1.0.0',
-    environment: 'demo'
-  });
-
-  const logger = telemetryProvider.getLogger('demo');
-  const span = logger.startSpan('demo-query', {
-    attributes: {
-      'demo.feature': 'telemetry',
-      'demo.user': 'test-user'
-    }
-  });
-
-  try {
-    span.addEvent('query-start');
-    
-    // Simulate some work
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    span.setAttribute('demo.result', 'success');
-    span.setStatus('ok');
-  } catch (error) {
-    span.recordException(error);
-  } finally {
-    span.end();
-  }
-
-  logger.recordMetric('demo_queries_total', 1, { feature: 'telemetry' });
-  console.log('📈 Telemetry span created and metrics recorded');
-  console.log(`📊 Query metrics:`, telemetryProvider.getQueryMetrics());
-  await telemetryProvider.shutdown();
-  console.log();
-
-  // 5. Exponential Backoff Demo
-  console.log('5️⃣ Exponential Backoff & Retry');
+  // 4. Exponential Backoff Demo
+  console.log('4️⃣ Exponential Backoff & Retry');
   console.log('--------------------------------');
   const retryExecutor = createRetryExecutor({
     maxAttempts: 3,

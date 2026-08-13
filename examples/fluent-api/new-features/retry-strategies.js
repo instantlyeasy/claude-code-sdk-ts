@@ -130,8 +130,8 @@ async function retryStrategiesExample() {
   console.log('----------------------------\n');
   
   try {
-    // Simple retry wrapper with custom configuration
-    const result = await withRetry(
+    // withRetry(fn, opts) returns a wrapper function — call it to run.
+    const runWithRetry = withRetry(
       async () => {
         return await claude()
           .withModel('sonnet')
@@ -140,18 +140,18 @@ async function retryStrategiesExample() {
       },
       {
         maxAttempts: 3,
-        strategy: 'exponential',
         initialDelay: 500,
         shouldRetry: (error, attempt) => {
           // Custom retry logic - only retry on specific errors
           const retryableErrors = ['network_error', 'timeout_error', 'rate_limit_error'];
           const errorType = error.type || 'unknown';
-          
+
           console.log(`🤔 Checking if should retry: ${errorType}`);
           return retryableErrors.includes(errorType) && attempt < 3;
         }
       }
     );
+    const result = await runWithRetry();
     
     console.log('✅ Result with retry helper:');
     console.log(result);
