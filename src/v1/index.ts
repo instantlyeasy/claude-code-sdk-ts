@@ -24,3 +24,16 @@ export type {
   ToolName,
   PermissionMode
 } from '../types.js';
+
+// Re-export the official permission + hook types so consumers can type their
+// canUseTool / hook callbacks from this single entry point.
+export type {
+  CanUseTool,
+  PermissionResult,
+  PermissionUpdate,
+  HookEvent,
+  HookCallback,
+  HookCallbackMatcher,
+  HookInput,
+  HookJSONOutput
+} from '@anthropic-ai/claude-agent-sdk';

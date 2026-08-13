@@ -101,3 +101,37 @@ describe('v1 end-to-end through the official SDK (mocked)', () => {
     expect(opts.disallowedTools).toContain('Bash');
   });
 });
+
+describe('v1 canUseTool + hooks', () => {
+  it('passes a canUseTool callback through to the official query', async () => {
+    const handler = vi.fn(async () => ({ behavior: 'allow' as const }));
+    await claude().canUseTool(handler).query('go').asText();
+    expect(captured.options?.canUseTool).toBe(handler);
+  });
+
+  it('addHook builds a Partial<Record<HookEvent, HookCallbackMatcher[]>> and passes it through', async () => {
+    const pre = vi.fn(async () => ({}));
+    const post = vi.fn(async () => ({}));
+    await claude()
+      .onPreToolUse(pre, { matcher: 'Bash' })
+      .onPostToolUse(post)
+      .addHook('Stop', post)
+      .query('go')
+      .asText();
+
+    const hooks = captured.options?.hooks as Record<string, Array<{ matcher?: string; hooks: unknown[]; timeout?: number }>>;
+    expect(hooks.PreToolUse).toHaveLength(1);
+    expect(hooks.PreToolUse[0]).toMatchObject({ matcher: 'Bash' });
+    expect(hooks.PreToolUse[0].hooks[0]).toBe(pre);
+    expect(hooks.PostToolUse[0].hooks[0]).toBe(post);
+    expect(hooks.Stop[0].hooks[0]).toBe(post);
+  });
+
+  it('multiple hooks on the same event are appended as separate matchers', async () => {
+    const a = vi.fn(async () => ({}));
+    const b = vi.fn(async () => ({}));
+    await claude().onPreToolUse(a).onPreToolUse(b).query('go').asText();
+    const hooks = captured.options?.hooks as Record<string, unknown[]>;
+    expect(hooks.PreToolUse).toHaveLength(2);
+  });
+});

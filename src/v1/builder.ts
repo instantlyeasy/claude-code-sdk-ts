@@ -17,6 +17,7 @@ import { ResponseParser } from '../parser.js';
 import type { Logger } from '../logger.js';
 import type { V1Options } from './types.js';
 import { runV1Query } from './query-runner.js';
+import type { CanUseTool, HookEvent, HookCallback } from '@anthropic-ai/claude-agent-sdk';
 
 export class V1QueryBuilder {
   private options: V1Options = {};
@@ -122,16 +123,58 @@ export class V1QueryBuilder {
     return this;
   }
 
-  /** Register an official-SDK `canUseTool` permission callback. */
-  withPermissionHandler(handler: unknown): this {
+  /**
+   * Register a permission callback, invoked whenever a tool call would otherwise
+   * prompt. Return `{ behavior: 'allow', updatedInput? }` to permit (optionally
+   * rewriting the input) or `{ behavior: 'deny', message }` to block it.
+   *
+   * @example
+   * ```typescript
+   * claude().canUseTool(async (tool, input) =>
+   *   tool === 'Bash' && String(input.command).startsWith('rm')
+   *     ? { behavior: 'deny', message: 'no rm' }
+   *     : { behavior: 'allow' }
+   * );
+   * ```
+   */
+  canUseTool(handler: CanUseTool): this {
     this.options.canUseTool = handler;
     return this;
   }
 
-  /** Register official-SDK hooks. */
-  withHooks(hooks: unknown): this {
-    this.options.hooks = hooks;
+  /**
+   * Register a lifecycle hook for any of the official SDK's hook events. Multiple
+   * hooks for the same event are appended (each as its own matcher).
+   *
+   * @param event   the hook event (e.g. 'PreToolUse', 'PostToolUse', 'Stop')
+   * @param callback the hook callback
+   * @param opts    optional `matcher` (tool-name pattern) and `timeout` (seconds)
+   */
+  addHook(event: HookEvent, callback: HookCallback, opts: { matcher?: string; timeout?: number } = {}): this {
+    const hooks = (this.options.hooks ??= {});
+    const matchers = (hooks[event] ??= []);
+    matchers.push({ matcher: opts.matcher, hooks: [callback], timeout: opts.timeout });
     return this;
+  }
+
+  /** Convenience: run `callback` before each matching tool call. */
+  onPreToolUse(callback: HookCallback, opts?: { matcher?: string; timeout?: number }): this {
+    return this.addHook('PreToolUse', callback, opts);
+  }
+
+  /** Convenience: run `callback` after each matching tool call completes. */
+  onPostToolUse(callback: HookCallback, opts?: { matcher?: string; timeout?: number }): this {
+    return this.addHook('PostToolUse', callback, opts);
+  }
+
+  /** Convenience: run `callback` when the user prompt is submitted. */
+  onUserPromptSubmit(callback: HookCallback, opts?: { timeout?: number }): this {
+    return this.addHook('UserPromptSubmit', callback, opts);
+  }
+
+  /** Convenience: run `callback` when the agent stops. */
+  onStop(callback: HookCallback, opts?: { timeout?: number }): this {
+    return this.addHook('Stop', callback, opts);
   }
 
   withLogger(logger: Logger): this {

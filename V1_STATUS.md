@@ -44,9 +44,13 @@ API until it is promoted to the default at 1.0.0.
 
 ## Remaining work (checklist)
 
-- [ ] First-class builder methods for **hooks** (typed `HookEvent` map) and
-      **`canUseTool`** (permission callback with input rewriting) — currently
-      accepted as opaque passthroughs.
+- [x] First-class builder methods for **hooks** and **`canUseTool`**.
+      `.canUseTool(handler)` takes the official `CanUseTool` callback (allow/deny +
+      input rewriting). `.addHook(event, cb, {matcher?, timeout?})` plus
+      `.onPreToolUse` / `.onPostToolUse` / `.onUserPromptSubmit` / `.onStop`
+      conveniences build the official `Partial<Record<HookEvent, HookCallbackMatcher[]>>`.
+      The official `CanUseTool` / `PermissionResult` / `HookEvent` / `HookCallback`
+      types are re-exported from the `./v1` entry. Covered by tests.
 - [ ] **In-process MCP servers**: re-export `createSdkMcpServer` / `tool()` and a
       `.withMCPServer()` builder method.
 - [ ] **Sessions**: `.resume()/.fork()`, plus `listSessions()/getSessionMessages()`
