@@ -52,30 +52,35 @@ function parseLogLevel(value: string | undefined): number | undefined {
  * to use for configuration. It explicitly does NOT load API keys.
  * 
  * Supported environment variables:
- * - DEBUG: Enable debug mode (boolean)
- * - VERBOSE: Enable verbose output (boolean)
- * - LOG_LEVEL: Set log level 0-4 (number)
+ * - CLAUDE_SDK_DEBUG: Enable debug mode (boolean)
+ * - CLAUDE_SDK_VERBOSE: Enable verbose output (boolean)
+ * - CLAUDE_SDK_LOG_LEVEL: Set log level 0-4 (number)
  * - NODE_ENV: Node environment (string)
- * 
+ *
+ * Note: the generic `DEBUG` / `VERBOSE` / `LOG_LEVEL` variables are intentionally
+ * NOT read — they are set ubiquitously by unrelated tooling (CI, the `debug`
+ * npm package), and treating them as ours silently enabled dumping of the
+ * command line and full stream traffic. Use the `CLAUDE_SDK_` variants.
+ *
  * @returns Options loaded from environment variables
  */
 export function loadSafeEnvironmentOptions(): SafeEnvironmentOptions {
   const options: SafeEnvironmentOptions = {};
-  
-  // Load DEBUG
-  const debug = parseBoolean(process.env.DEBUG);
+
+  // Load CLAUDE_SDK_DEBUG (namespaced; generic DEBUG is deliberately ignored).
+  const debug = parseBoolean(process.env.CLAUDE_SDK_DEBUG);
   if (debug !== undefined) {
     options.debug = debug;
   }
-  
-  // Load VERBOSE
-  const verbose = parseBoolean(process.env.VERBOSE);
+
+  // Load CLAUDE_SDK_VERBOSE
+  const verbose = parseBoolean(process.env.CLAUDE_SDK_VERBOSE);
   if (verbose !== undefined) {
     options.verbose = verbose;
   }
-  
-  // Load LOG_LEVEL
-  const logLevel = parseLogLevel(process.env.LOG_LEVEL);
+
+  // Load CLAUDE_SDK_LOG_LEVEL
+  const logLevel = parseLogLevel(process.env.CLAUDE_SDK_LOG_LEVEL);
   if (logLevel !== undefined) {
     options.logLevel = logLevel;
   }
@@ -92,18 +97,19 @@ export function loadSafeEnvironmentOptions(): SafeEnvironmentOptions {
 }
 
 /**
- * Warning message for API key safety
+ * Note on authentication.
+ *
+ * This SDK does not handle API keys at all — it shells out to the `claude` CLI,
+ * which owns authentication. There is deliberately no `apiKey` option.
  */
 export const API_KEY_SAFETY_WARNING = `
-IMPORTANT: API keys are not automatically loaded from environment variables.
-This is a safety measure to prevent accidental billing charges.
+Authentication is handled entirely by the Claude Code CLI, not by this SDK.
 
-If you need to use an API key, you must explicitly provide it in your code:
-  const result = await query('Your prompt', { apiKey: 'your-api-key' });
+Set up auth once with the CLI:
+  - Interactive login:            claude login
+  - Or an API key for the CLI:    export ANTHROPIC_API_KEY=sk-ant-...
+  - Or a provider:                CLAUDE_CODE_USE_BEDROCK / CLAUDE_CODE_USE_VERTEX
 
-If you understand the risks and want to allow API key from environment:
-  const result = await query('Your prompt', { 
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    allowApiKeyFromEnv: true // Explicit opt-in
-  });
+This SDK has no 'apiKey' option; any credentials live in the CLI's own config
+or the process environment that the CLI reads.
 `.trim();

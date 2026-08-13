@@ -45,7 +45,9 @@ export type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock;
 // Message types
 export interface UserMessage {
   type: 'user';
-  content: string;
+  // The CLI delivers tool results inside `user` messages as content blocks.
+  // A plain string is still accepted for prompts echoed back.
+  content: string | ContentBlock[];
   session_id?: string;
 }
 
@@ -58,21 +60,47 @@ export interface AssistantMessage {
 export interface SystemMessage {
   type: 'system';
   subtype?: string;
-  data?: unknown;
   session_id?: string;
+  /** @deprecated legacy envelope that the CLI never actually emitted; real fields are top-level below */
+  data?: unknown;
+  // Real top-level fields carried on the CLI's `system`/`init` message.
+  uuid?: string;
+  model?: string;
+  permissionMode?: string;
+  tools?: string[];
+  mcp_servers?: Array<{ name: string; status: string }>;
+  slash_commands?: string[];
+  apiKeySource?: string;
+  cwd?: string;
 }
 
 export interface ResultMessage {
   type: 'result';
   subtype?: string;
+  /**
+   * Final assistant text. Populated from the CLI's `result` field.
+   * (Kept named `content` for backward compatibility with pre-0.3.4 consumers.)
+   */
   content: string;
+  /** Alias of `content` matching the CLI's own field name. */
+  result?: string;
   session_id?: string;
+  is_error?: boolean;
+  num_turns?: number;
+  duration_ms?: number;
+  duration_api_ms?: number;
+  /** Top-level total cost, matching the CLI's `total_cost_usd` field. */
+  total_cost_usd?: number;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
     cache_creation_input_tokens?: number;
     cache_read_input_tokens?: number;
   };
+  /** Per-model usage/accounting (CLI `modelUsage`), the authoritative source incl. subagents. */
+  modelUsage?: Record<string, unknown>;
+  /** Tools the CLI auto-denied during the run (CLI `permission_denials`). */
+  permission_denials?: Array<{ tool_name: string; tool_use_id: string; tool_input: Record<string, unknown> }>;
   cost?: {
     input_cost?: number;
     output_cost?: number;
@@ -84,8 +112,11 @@ export interface ResultMessage {
 
 export type Message = UserMessage | AssistantMessage | SystemMessage | ResultMessage;
 
-// MCP server configuration
+// MCP server configuration (stdio transport).
+// Note: the CLI keys MCP servers by name. Provide `name` to control the key;
+// otherwise the SDK synthesizes one (`server0`, `server1`, ...).
 export interface MCPServer {
+  name?: string;
   command: string;
   args?: string[];
   env?: Record<string, string>;
@@ -124,6 +155,9 @@ export interface ClaudeCodeOptions {
   sessionId?: string;
   // Additional directories to include in context
   addDirectories?: string[];
+  // Explicit path to the `claude` CLI binary. When set, the SDK skips its
+  // discovery heuristics and uses this path directly (also used for testing).
+  pathToClaudeCodeExecutable?: string;
 }
 
 // Additional types for internal use - based on actual Claude Code CLI output
@@ -145,7 +179,7 @@ export interface CLIEnd {
   type: 'end';
 }
 
-// Actual CLI output types (what the CLI actually returns)
+// Actual CLI output types (what the CLI actually returns on stream-json)
 export interface CLIAssistantOutput {
   type: 'assistant';
   message: {
@@ -154,26 +188,49 @@ export interface CLIAssistantOutput {
   session_id?: string;
 }
 
+// Tool results and other user-role turns arrive as `user` messages.
+export interface CLIUserOutput {
+  type: 'user';
+  message: {
+    content: string | ContentBlock[];
+  };
+  session_id?: string;
+}
+
 export interface CLISystemOutput {
   type: 'system';
   subtype?: string;
   session_id?: string;
+  uuid?: string;
+  model?: string;
+  permissionMode?: string;
+  tools?: string[];
+  mcp_servers?: Array<{ name: string; status: string }>;
+  slash_commands?: string[];
+  apiKeySource?: string;
+  cwd?: string;
 }
 
 export interface CLIResultOutput {
   type: 'result';
   subtype?: string;
-  content?: string;
+  // The final text lives in `result` (not `content`).
+  result?: string;
+  is_error?: boolean;
+  num_turns?: number;
+  duration_ms?: number;
+  duration_api_ms?: number;
   session_id?: string;
+  // Cost is a top-level field named `total_cost_usd`.
+  total_cost_usd?: number;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
     cache_creation_input_tokens?: number;
     cache_read_input_tokens?: number;
   };
-  cost?: {
-    total_cost_usd?: number;
-  };
+  modelUsage?: Record<string, unknown>;
+  permission_denials?: Array<{ tool_name: string; tool_use_id: string; tool_input: Record<string, unknown> }>;
 }
 
 export interface CLIErrorOutput {
@@ -185,7 +242,15 @@ export interface CLIErrorOutput {
   };
 }
 
-export type CLIOutput = CLIAssistantOutput | CLISystemOutput | CLIResultOutput | CLIErrorOutput | CLIMessage | CLIError | CLIEnd;
+export type CLIOutput =
+  | CLIAssistantOutput
+  | CLIUserOutput
+  | CLISystemOutput
+  | CLIResultOutput
+  | CLIErrorOutput
+  | CLIMessage
+  | CLIError
+  | CLIEnd;
 
 // Re-export new permission and configuration types
 export * from './types/permissions.js';

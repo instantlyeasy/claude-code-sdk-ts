@@ -1,4 +1,4 @@
-import type { Message, ToolUseBlock, ResultMessage } from './types.js';
+import type { Message, ToolUseBlock, ResultMessage, ContentBlock } from './types.js';
 import type { Logger } from './logger.js';
 
 /**
@@ -69,30 +69,35 @@ export class ResponseParser {
    */
   async asToolExecutions(): Promise<ToolExecution[]> {
     await this.consume();
-    
+
     const executions: ToolExecution[] = [];
     const toolUses = new Map<string, ToolUseBlock>();
-    
+
+    // tool_use blocks are emitted by the assistant; the matching tool_result
+    // blocks arrive later inside `user` messages. Scan both, correlating by id.
     for (const msg of this.messages) {
-      if (msg.type === 'assistant') {
-        for (const block of msg.content) {
-          if (block.type === 'tool_use') {
-            toolUses.set(block.id, block);
-          } else if (block.type === 'tool_result') {
-            const toolUse = toolUses.get(block.tool_use_id);
-            if (toolUse) {
-              executions.push({
-                tool: toolUse.name,
-                input: toolUse.input,
-                result: block.content,
-                isError: block.is_error ?? false
-              });
-            }
+      const blocks: readonly ContentBlock[] =
+        (msg.type === 'assistant' && Array.isArray(msg.content) && msg.content) ||
+        (msg.type === 'user' && Array.isArray(msg.content) && msg.content) ||
+        [];
+
+      for (const block of blocks) {
+        if (block.type === 'tool_use') {
+          toolUses.set(block.id, block);
+        } else if (block.type === 'tool_result') {
+          const toolUse = toolUses.get(block.tool_use_id);
+          if (toolUse) {
+            executions.push({
+              tool: toolUse.name,
+              input: toolUse.input,
+              result: block.content,
+              isError: block.is_error ?? false
+            });
           }
         }
       }
     }
-    
+
     return executions;
   }
 
@@ -192,6 +197,16 @@ export class ResponseParser {
    * Stream messages with a callback (doesn't consume for other methods)
    */
   async stream(callback: (message: Message) => void | Promise<void>): Promise<void> {
+    // If the underlying generator was already drained by another helper (or a
+    // previous stream() call), replay the cached messages instead of silently
+    // iterating an exhausted generator and invoking the callback zero times.
+    if (this.consumed) {
+      for (const message of this.messages) {
+        await callback(message);
+      }
+      return;
+    }
+
     for await (const message of this.generator) {
       // Run handlers
       for (const handler of this.handlers) {
@@ -201,14 +216,14 @@ export class ResponseParser {
           this.logger?.error('Message handler error', { error });
         }
       }
-      
+
       // Store message
       this.messages.push(message);
-      
+
       // Run callback
       await callback(message);
     }
-    
+
     this.consumed = true;
   }
 
@@ -217,15 +232,17 @@ export class ResponseParser {
    */
   async succeeded(): Promise<boolean> {
     await this.consume();
-    
+
     const resultMsg = this.messages.findLast((msg): msg is ResultMessage => msg.type === 'result');
     if (!resultMsg) return false;
-    
-    // Check if any tool execution failed
+
+    // The CLI itself reports failure via the result subtype / is_error flag.
+    if (resultMsg.is_error === true) return false;
+    if (resultMsg.subtype && resultMsg.subtype !== 'success') return false;
+
+    // Also treat any failed tool execution as an unsuccessful run.
     const executions = await this.asToolExecutions();
-    const hasErrors = executions.some(exec => exec.isError);
-    
-    return !hasErrors;
+    return !executions.some(exec => exec.isError);
   }
 
   /**
@@ -233,27 +250,28 @@ export class ResponseParser {
    */
   async getErrors(): Promise<string[]> {
     await this.consume();
-    
+
     const errors: string[] = [];
-    
-    // Check system messages for errors
-    for (const msg of this.messages) {
-      if (msg.type === 'system' && msg.subtype === 'error') {
-        const errorMessage = msg.data && typeof msg.data === 'object' && 'message' in msg.data
-          ? String(msg.data.message)
-          : 'Unknown error';
-        errors.push(errorMessage);
-      }
+
+    // The CLI reports run-level failure via the result subtype / is_error flag.
+    const resultMsg = this.messages.findLast((msg): msg is ResultMessage => msg.type === 'result');
+    if (resultMsg && (resultMsg.is_error === true || (resultMsg.subtype && resultMsg.subtype !== 'success'))) {
+      errors.push(`Query failed (${resultMsg.subtype ?? 'error'})${resultMsg.content ? `: ${resultMsg.content}` : ''}`);
     }
-    
-    // Check tool results for errors
+
+    // Surface tools the CLI auto-denied.
+    for (const denial of resultMsg?.permission_denials ?? []) {
+      errors.push(`Permission denied for tool ${denial.tool_name}`);
+    }
+
+    // Check tool results for errors.
     const executions = await this.asToolExecutions();
     for (const exec of executions) {
       if (exec.isError) {
         errors.push(`Tool ${exec.tool} failed: ${exec.result}`);
       }
     }
-    
+
     return errors;
   }
 

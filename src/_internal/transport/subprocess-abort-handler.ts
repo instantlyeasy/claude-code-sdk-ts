@@ -1,5 +1,4 @@
 import { type ExecaChildProcess } from 'execa';
-import { AbortError } from '../../errors.js';
 
 /**
  * Manages proper subprocess cleanup when AbortSignal is triggered.
@@ -23,17 +22,20 @@ export class SubprocessAbortHandler {
       return () => {};
     }
 
-    // Check if already aborted
+    // Already-aborted signals are handled by the transport *before* spawn, so
+    // by the time we get here the signal should be live. Guard defensively:
+    // cancel and let the awaiting consumer observe the AbortError — never throw
+    // synchronously from here.
     if (this.signal.aborted) {
       this.process.cancel();
-      throw new AbortError('Operation aborted before starting');
+      return () => {};
     }
 
     // Create abort handler
     this.cleanupHandler = () => {
       // Use execa's cancel method for clean termination
       this.process.cancel();
-      
+
       // Set a fallback timeout for forceful termination
       this.timeoutId = setTimeout(() => {
         if (!this.process.killed) {
@@ -45,15 +47,14 @@ export class SubprocessAbortHandler {
     // Attach abort listener
     this.signal.addEventListener('abort', this.cleanupHandler, { once: true });
 
-    // Handle process errors to prevent unhandled rejection warnings
-    const errorHandler = (error: Error) => {
-      // Only suppress abort-related errors
-      if (error.name === 'CancelError' || this.signal?.aborted) {
-        // This is expected when aborting, not a real error
-        return;
-      }
-      // Re-throw other errors
-      throw error;
+    // A process 'error' event (e.g. spawn failure) must NEVER be rethrown from
+    // inside this listener: an exception thrown from an EventEmitter callback
+    // becomes an uncaughtException and terminates the host process. The real
+    // error is delivered through the child's promise, which the transport
+    // awaits in receiveMessages(); here we only need to keep the event from
+    // going unhandled.
+    const errorHandler = (_error: Error) => {
+      // Intentionally swallowed — see comment above.
     };
     this.process.on('error', errorHandler);
 

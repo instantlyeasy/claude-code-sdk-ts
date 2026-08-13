@@ -61,14 +61,13 @@ export class QueryBuilder {
    */
   allowTools(...tools: ToolName[]): this {
     if (tools.length === 0) {
-      // Enforce read-only mode by denying all tools
-      const allTools: ToolName[] = [
-        'Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'LS',
-        'MultiEdit', 'NotebookRead', 'NotebookEdit', 'WebFetch',
-        'TodoRead', 'TodoWrite', 'WebSearch', 'Task', 'MCPTool'
+      // Enforce read-only mode by denying only the mutating tools, leaving
+      // read-only tools (Read, Grep, Glob, ...) available.
+      const mutatingTools: ToolName[] = [
+        'Write', 'Edit', 'MultiEdit', 'Bash', 'NotebookEdit', 'TodoWrite'
       ];
-      this.options.deniedTools = allTools;
-      this.options.allowedTools = [];
+      this.options.deniedTools = mutatingTools;
+      this.options.allowedTools = undefined;
     } else {
       this.options.allowedTools = tools;
     }
@@ -314,60 +313,55 @@ export class QueryBuilder {
    * Execute query and return response parser
    */
   query(prompt: string): ResponseParser {
-    // Apply MCP server permissions
-    const finalOptions = this.permissionManager.applyToOptions(this.options);
-    
-    // Apply prompting template if available
-    let finalPrompt = prompt;
-    if (this.rolePromptingTemplate && this.roleTemplateVariables) {
-      const templatedPrompt = this.rolePromptingTemplate.replace(
-        /\$\{([^}]+)\}/g, 
-        (match, varName) => this.roleTemplateVariables![varName] || match
-      );
-      
-      if (finalOptions.systemPrompt) {
-        finalPrompt = `${finalOptions.systemPrompt}\n\n${templatedPrompt}\n\n${prompt}`;
-      } else {
-        finalPrompt = `${templatedPrompt}\n\n${prompt}`;
-      }
-    } else if (finalOptions.systemPrompt) {
-      finalPrompt = `${finalOptions.systemPrompt}\n\n${prompt}`;
-    }
-    
-    const parser = new ResponseParser(
+    const { finalPrompt, finalOptions } = this.buildQuery(prompt);
+    return new ResponseParser(
       baseQuery(finalPrompt, finalOptions),
       this.messageHandlers,
       this.logger
     );
-    return parser;
+  }
+
+  /**
+   * Resolve the final prompt and options for a query.
+   *
+   * The role prompting template (a *prompt* template) is still woven into the
+   * prompt here. The system prompt, however, is now delivered as a real CLI
+   * flag (`--append-system-prompt`) rather than being prepended to the user
+   * prompt, so it is left on the options untouched.
+   */
+  private buildQuery(prompt: string): { finalPrompt: string; finalOptions: ClaudeCodeOptions } {
+    const finalOptions = this.permissionManager.applyToOptions(this.options);
+
+    let finalPrompt = prompt;
+    if (this.rolePromptingTemplate) {
+      const vars = this.roleTemplateVariables ?? {};
+      const templatedPrompt = this.rolePromptingTemplate.replace(
+        /\$\{([^}]+)\}/g,
+        (match, varName) => vars[varName] ?? match
+      );
+      finalPrompt = `${templatedPrompt}\n\n${prompt}`;
+    }
+
+    return { finalPrompt, finalOptions };
   }
 
   /**
    * Execute query and return raw async generator (for backward compatibility)
    */
   async *queryRaw(prompt: string): AsyncGenerator<Message> {
-    // Apply MCP server permissions
-    const finalOptions = this.permissionManager.applyToOptions(this.options);
-    
-    // Apply prompting template if available
-    let finalPrompt = prompt;
-    if (this.rolePromptingTemplate && this.roleTemplateVariables) {
-      const templatedPrompt = this.rolePromptingTemplate.replace(
-        /\$\{([^}]+)\}/g, 
-        (match, varName) => this.roleTemplateVariables![varName] || match
-      );
-      
-      if (finalOptions.systemPrompt) {
-        finalPrompt = `${finalOptions.systemPrompt}\n\n${templatedPrompt}\n\n${prompt}`;
-      } else {
-        finalPrompt = `${templatedPrompt}\n\n${prompt}`;
-      }
-    } else if (finalOptions.systemPrompt) {
-      finalPrompt = `${finalOptions.systemPrompt}\n\n${prompt}`;
-    }
-    
-    this.logger?.info('Starting query', { prompt: finalPrompt, options: finalOptions });
-    
+    const { finalPrompt, finalOptions } = this.buildQuery(prompt);
+
+    // Log only non-sensitive metadata. The full prompt frequently contains user
+    // PII / proprietary code, and options.env commonly holds credentials, so
+    // neither is logged. (Set debug for the CLI-level stream trace instead.)
+    this.logger?.info('Starting query', {
+      model: finalOptions.model,
+      promptLength: finalPrompt.length,
+      allowedTools: finalOptions.allowedTools?.length ?? 0,
+      deniedTools: finalOptions.deniedTools?.length ?? 0,
+      permissionMode: finalOptions.permissionMode
+    });
+
     for await (const message of baseQuery(finalPrompt, finalOptions)) {
       this.logger?.debug('Received message', { type: message.type });
       

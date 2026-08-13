@@ -1,6 +1,6 @@
 {
   "name": "@instantlyeasy/claude-code-sdk-ts",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Unofficial TypeScript port of the official Python Claude Code SDK",
   "type": "module",
   "main": "dist/index.js",
@@ -22,8 +22,9 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "vitest",
-    "test:coverage": "vitest --coverage",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
