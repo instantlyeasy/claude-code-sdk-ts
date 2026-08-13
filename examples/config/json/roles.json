@@ -11,10 +11,6 @@
           "allowed": ["Read", "Write", "Edit", "Grep", "LS"],
           "denied": ["Delete"]
         }
-      },
-      "context": {
-        "temperature": 0.5,
-        "maxTokens": 4000
       }
     },
     "dataAnalyst": {
@@ -35,8 +31,6 @@
       "promptingTemplate": "You are a ${domain} data analyst specializing in ${specialty}. Focus on extracting meaningful insights from data.",
       "systemPrompt": "Always provide data-driven insights with statistical rigor. Include confidence intervals and limitations of the analysis.",
       "context": {
-        "temperature": 0.2,
-        "maxTokens": 6000,
         "additionalContext": [
           "Focus on statistical significance",
           "Include data quality assessments",
@@ -61,11 +55,7 @@
         }
       },
       "promptingTemplate": "You are a security auditor reviewing ${language} code for ${project}.",
-      "systemPrompt": "Focus on identifying security vulnerabilities, following OWASP guidelines. Always explain the potential impact and provide remediation suggestions.",
-      "context": {
-        "temperature": 0.1,
-        "maxTokens": 8000
-      }
+      "systemPrompt": "Focus on identifying security vulnerabilities, following OWASP guidelines. Always explain the potential impact and provide remediation suggestions."
     },
     "contentCreator": {
       "description": "Creative content writer",
@@ -78,11 +68,7 @@
         }
       },
       "promptingTemplate": "You are a ${type} writer creating content about ${topic}.",
-      "systemPrompt": "Write engaging, clear, and well-structured content. Adapt your tone and style to the target audience.",
-      "context": {
-        "temperature": 0.8,
-        "maxTokens": 10000
-      }
+      "systemPrompt": "Write engaging, clear, and well-structured content. Adapt your tone and style to the target audience."
     },
     "seniorDeveloper": {
       "extends": "developer",
@@ -99,15 +85,12 @@
           "denied": []
         }
       },
-      "promptingTemplate": "You are a senior ${language} developer with expertise in ${framework}.",
-      "context": {
-        "temperature": 0.4,
-        "maxTokens": 8000
-      }
+      "promptingTemplate": "You are a senior ${language} developer with expertise in ${framework}."
     },
     "leadArchitect": {
       "extends": "seniorDeveloper",
       "description": "Lead architect with full system access",
+      "model": "opus",
       "permissions": {
         "mode": "bypassPermissions",
         "mcpServers": {
@@ -116,7 +99,6 @@
       },
       "systemPrompt": "You are the lead architect. Consider system-wide implications, scalability, and long-term maintainability in all decisions.",
       "context": {
-        "maxTokens": 12000,
         "additionalContext": [
           "Consider microservices architecture",
           "Evaluate cloud-native solutions",

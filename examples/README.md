@@ -68,32 +68,34 @@ for await (const message of query('Create a README file', {
 
 8. **[fluent-api-demo.js](./fluent-api-demo.js)** - Comprehensive fluent API showcase
 9. **[response-parsing-demo.js](./response-parsing-demo.js)** - Advanced response handling
-10. **[new-features-demo.js](./new-features-demo.js)** - MCP permissions, roles, and config files
-11. **[enhanced-features-demo.js](./enhanced-features-demo.js)** - New enhanced features (v0.3.0)
+10. **[new-features-demo.js](./new-features-demo.js)** - Roles/personas and configuration objects
+11. **[enhanced-features-demo.js](./enhanced-features-demo.js)** - Typed errors, token streaming, per-call permissions, retry
 12. **[production-features.js](./production-features.js)** - Production-ready features (AbortSignal, read-only mode, logging)
 13. **[sessions.js](./sessions.js)** - Session management and conversation context
 
 ## 🚀 Getting Started
 
-1. **Install the SDK:**
+1. **Build the SDK from the repo root** (required — `dist/` is gitignored, and
+   some examples import the built output at `../dist/index.js`):
    ```bash
-   npm install @instantlyeasy/claude-code-sdk-ts
+   npm install && npm run build
    ```
 
-2. **Install Claude CLI:**
+2. **Install the Claude CLI** (the SDK shells out to it; note the package name):
    ```bash
    npm install -g @anthropic-ai/claude-code
    ```
 
-3. **Authenticate:**
+3. **Authenticate the CLI** — the SDK has no `apiKey` option; authentication is
+   handled entirely by the CLI:
    ```bash
-   claude login
+   claude login          # or set ANTHROPIC_API_KEY, which the CLI reads
    ```
 
-4. **Run examples:**
+4. **Run an example:**
    ```bash
    cd examples
-   node hello-world.js
+   node fluent-api/hello-world.js
    ```
 
 ## 💡 Key Concepts
@@ -166,9 +168,11 @@ See [interactive-session.js](./interactive-session.js) for:
 - Dynamic option configuration
 - User input handling
 
-## 🆕 Enhanced Features (v0.3.0)
+## 🆕 Enhanced Features (v0.4.0)
 
-The SDK now includes several enhanced features based on early adopter feedback:
+The SDK includes several enhanced features based on early adopter feedback.
+(The OpenTelemetry/logging-provider integration that earlier versions advertised
+was removed in v0.4.0 and is intentionally not listed here.)
 
 ### 1. **Typed Error Handling**
 ```javascript
@@ -207,17 +211,10 @@ const isAllowed = await permissionManager.isToolAllowed('Bash', context, {
 });
 ```
 
-### 4. **OpenTelemetry Integration**
+### 4. **Exponential Backoff & Retry**
 ```javascript
-const telemetryProvider = createTelemetryProvider();
-const logger = telemetryProvider.getLogger('my-app');
-const span = logger.startSpan('claude-query');
-// ... your query
-span.end();
-```
+import { createRetryExecutor } from '@instantlyeasy/claude-code-sdk-ts';
 
-### 5. **Exponential Backoff & Retry**
-```javascript
 const retryExecutor = createRetryExecutor({
   maxAttempts: 3,
   initialDelay: 1000,
@@ -225,13 +222,23 @@ const retryExecutor = createRetryExecutor({
 });
 
 const result = await retryExecutor.execute(async () => {
-  return await query('Your prompt');
+  return await claude().query('Your prompt').asText();
 });
+```
+
+There is also a `withRetry(fn, opts)` helper. Note it returns a *wrapper
+function* — it does not run `fn` itself:
+
+```javascript
+import { withRetry } from '@instantlyeasy/claude-code-sdk-ts';
+
+const run = withRetry(() => claude().query('Your prompt').asText(), { maxAttempts: 3 });
+const result = await run();
 ```
 
 See [enhanced-features-demo.js](./enhanced-features-demo.js) for a complete demonstration.
 
-### 6. **Production Features**
+### 5. **Production Features**
 
 See [production-features.js](./production-features.js) for:
 - Cancellable queries with AbortSignal
@@ -239,7 +246,7 @@ See [production-features.js](./production-features.js) for:
 - Advanced logging with nested object support
 - Message vs token streaming clarification
 
-### 7. **Session Management**
+### 6. **Session Management**
 
 See [sessions.js](./sessions.js) for:
 - Session management with `getSessionId()` and `withSessionId()`

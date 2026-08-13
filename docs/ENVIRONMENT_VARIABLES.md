@@ -1,97 +1,105 @@
 # Environment Variables
 
-The Claude Code SDK supports loading certain configuration options from environment variables for convenience. However, for security and billing safety, API keys are NOT automatically loaded.
+The Claude Code SDK reads a small, namespaced set of environment variables for
+convenience. Authentication is **not** among them — that is delegated entirely
+to the `claude` CLI (see below).
 
-## ⚠️ Important: API Key Safety
+## Authentication is handled by the CLI
 
-**API keys are NOT automatically loaded from environment variables.** This is an intentional safety measure to prevent accidental overage charges.
+This SDK does not handle API keys at all. There is **no `apiKey` option and no
+`allowApiKeyFromEnv` option** — it shells out to the `claude` CLI, which owns
+authentication. The SDK never reads `ANTHROPIC_API_KEY` itself.
 
-### Why This Matters
+Set up auth once with the CLI:
 
-- If you've logged in via `claude login`, you're using a Pro/Max subscription
-- Using an API key (from `ANTHROPIC_API_KEY`) bypasses your subscription and incurs pay-per-use charges
-- This could lead to unexpected billing if you have the environment variable set
+```bash
+# Interactive login (uses your Pro/Max subscription)
+claude login
 
-### How to Use API Keys
+# …or give the CLI an API key to read (pay-per-use billing)
+export ANTHROPIC_API_KEY=sk-ant-...
 
-If you need to use an API key, you must explicitly provide it:
-
-```javascript
-// ✅ Safe: Explicit API key
-const result = await query('Your prompt', { 
-  apiKey: 'sk-ant-...' 
-});
-
-// ❌ Never implemented: Automatic loading
-// The SDK will NEVER automatically load ANTHROPIC_API_KEY
+# …or select a provider the CLI supports
+export CLAUDE_CODE_USE_BEDROCK=1
+export CLAUDE_CODE_USE_VERTEX=1
 ```
 
-## Supported Environment Variables
+Any credentials live in the CLI's own config or in the process environment that
+the CLI reads. There is nothing to pass through the SDK.
 
-The following environment variables are automatically loaded and can be overridden by explicit options:
+## Supported environment variables
 
-### `DEBUG`
+These are read by the SDK and applied to options only when you have not already
+set the corresponding option explicitly (explicit options win — see Precedence).
+
+### `CLAUDE_SDK_DEBUG`
 Enable debug mode for additional logging.
 
-- **Values**: `true`, `1`, `yes`, `on` (for true) | `false`, `0`, `no`, `off` (for false)
+- **Values**: `true`, `1`, `yes`, `on` (true) | `false`, `0`, `no`, `off` (false)
 - **Default**: `false`
-- **Example**: `DEBUG=true npm start`
+- **Example**: `CLAUDE_SDK_DEBUG=true node your-script.js`
 
-### `VERBOSE`
+### `CLAUDE_SDK_VERBOSE`
 Enable verbose output for more detailed information.
 
-- **Values**: `true`, `1`, `yes`, `on` (for true) | `false`, `0`, `no`, `off` (for false)
+- **Values**: `true`, `1`, `yes`, `on` (true) | `false`, `0`, `no`, `off` (false)
 - **Default**: `false`
-- **Example**: `VERBOSE=1 npm start`
+- **Example**: `CLAUDE_SDK_VERBOSE=1 node your-script.js`
 
-### `LOG_LEVEL`
-Set the logging level (0-4).
+### `CLAUDE_SDK_LOG_LEVEL`
+Set the logging level (0–4).
 
-- **Values**: `0` (silent) to `4` (debug)
+- **Values**: `0` (silent) to `4` (debug); values outside this range are ignored
 - **Default**: Not set
-- **Example**: `LOG_LEVEL=3 npm start`
+- **Example**: `CLAUDE_SDK_LOG_LEVEL=3 node your-script.js`
 
 ### `NODE_ENV`
-The Node.js environment (loaded but not directly used by SDK).
+The Node.js environment (loaded but not applied to SDK options).
 
 - **Values**: `development`, `production`, `test`, etc.
 - **Default**: Not set
-- **Example**: `NODE_ENV=development npm start`
+- **Example**: `NODE_ENV=development node your-script.js`
+
+## Generic `DEBUG` / `VERBOSE` / `LOG_LEVEL` are no longer read
+
+Earlier versions read the un-namespaced `DEBUG`, `VERBOSE`, and `LOG_LEVEL`
+variables. They are **no longer read**. Those names are set ubiquitously by
+unrelated tooling (CI systems, the `debug` npm package), and treating them as
+the SDK's own silently enabled dumping of the command line and full stream
+traffic. Use the `CLAUDE_SDK_`-prefixed variants above instead.
 
 ## Precedence
 
-Explicit options always take precedence over environment variables:
+Explicit options always take precedence over environment variables. An
+environment variable is applied only when the matching option is unset:
 
 ```javascript
-// Environment: DEBUG=true
-const result = await query('Your prompt', { 
-  debug: false  // This wins - debug will be false
-});
+// Environment: CLAUDE_SDK_DEBUG=true
+const result = await claude()
+  .debug(false) // this wins — debug stays false
+  .query('Your prompt')
+  .asText();
 ```
 
-## Example Usage
+With the low-level `query()` function, pass the option directly:
+
+```javascript
+// Environment: CLAUDE_SDK_DEBUG=true
+for await (const message of query('Your prompt', { debug: false })) {
+  // debug stays false — the explicit option wins over the env var
+}
+```
+
+## Example usage
 
 ```bash
 # Enable debug mode via environment
-DEBUG=true node your-script.js
+CLAUDE_SDK_DEBUG=true node your-script.js
 
-# Multiple environment variables
-DEBUG=true VERBOSE=1 LOG_LEVEL=3 node your-script.js
+# Multiple SDK variables at once
+CLAUDE_SDK_DEBUG=true CLAUDE_SDK_VERBOSE=1 CLAUDE_SDK_LOG_LEVEL=3 node your-script.js
 
-# Environment variables with explicit overrides
-DEBUG=true node your-script.js
-# In your code: query('prompt', { debug: false }) // debug will be false
-```
-
-## Future Considerations
-
-If you absolutely need to load API keys from environment variables (not recommended), you could implement it in your own code:
-
-```javascript
-// Your code - NOT built into the SDK
-const apiKey = process.env.ANTHROPIC_API_KEY;
-if (apiKey) {
-  console.warn('⚠️  Using API key from environment - this may incur charges!');
-  const result = await query('Your prompt', { apiKey });
-}
+# Environment variable set, but the explicit option overrides it
+CLAUDE_SDK_DEBUG=true node your-script.js
+# …with .debug(false) (fluent) or { debug: false } (query options), debug is false
 ```

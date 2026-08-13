@@ -158,8 +158,9 @@ await query.stream(async (message) => {
   // Handle each message as it arrives
 });
 
-// Raw message iteration
-for await (const msg of query.asMessages()) {
+// All messages as an array
+const messages = await query.asArray();
+for (const msg of messages) {
   // Process messages one by one
 }
 ```
@@ -178,42 +179,37 @@ claude()
   .acceptEdits()
 ```
 
-### 4. MCP Server Permissions
-Manage permissions at the server level:
+### 4. Configuration and Roles
+Use configuration files and predefined roles. Note that `withConfigFile()` and
+`withRolesFile()` are **async** (they read and validate from disk), so each must
+be awaited before you chain anything else:
 ```javascript
-claude()
-  .withMCPServerPermission('file-system-mcp', 'whitelist')
-  .withMCPServerPermissions({
-    'git-mcp': 'whitelist',
-    'database-mcp': 'ask',
-    'network-mcp': 'blacklist'
-  })
-```
+// Await the async file loaders first...
+const builder = await claude().withConfigFile('./config.json');
+await builder.withRolesFile('./roles.json');
 
-### 5. Configuration and Roles
-Use configuration files and predefined roles:
-```javascript
-await claude()
-  .withConfigFile('./config.json')
-  .withRolesFile('./roles.json')
-  .withRole('senior-developer', {
+// ...then apply a role and run the query.
+// The role name must match one defined in your roles file
+// (e.g. the shipped examples/config roles use `seniorDeveloper`).
+const result = await builder
+  .withRole('seniorDeveloper', {
     language: 'TypeScript',
     framework: 'Next.js'
   })
   .query('Review this pull request')
+  .asText();
 ```
 
-### 6. Event Handlers
-React to events during execution:
+### 5. Event Handlers
+React to messages as they stream in during execution:
 ```javascript
 claude()
   .onMessage(msg => logger.log(msg))
   .onToolUse(tool => console.log(`Tool: ${tool.name}`))
   .onAssistant(content => updateUI(content))
-  .onError(error => handleError(error))
 ```
 
-### 7. Custom Logging
+### 6. Custom Logging
 Integrate with your logging system:
 ```javascript
 import { ConsoleLogger, LogLevel } from '@instantlyeasy/claude-code-sdk-ts';
@@ -336,6 +332,6 @@ console.log('Tool usage statistics:', toolUsage);
 ## Additional Resources
 
 - [SDK Documentation](../../README.md)
-- [API Reference](../../docs/API.md)
+- [Fluent API Reference](../../docs/FLUENT_API.md)
 - [Advanced Features](new-features/README.md)
 - [Configuration Guide](../config/README.md)

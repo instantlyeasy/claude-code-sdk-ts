@@ -8,10 +8,10 @@
 
 Unofficial TypeScript SDK for [Claude Code](https://github.com/anthropics/claude-code) - the powerful CLI tool for interacting with Claude.
 
-**✨ What's New in v0.3.3:**
+**✨ What's New in v0.4.0:**
 - 🎬 **Interactive streaming session** with working visual typewriter effects
-- 🛡️ **Advanced error handling** with retry strategies and typed errors
-- 📊 **Token streaming analysis** with honest documentation about current behavior
+- 🛡️ **Typed error handling** you catch with `instanceof` — no error categories, no wrappers
+- ⏱️ **Timeouts and edit-acceptance that actually take effect** — `withTimeout()` throws a real `TimeoutError`, `acceptEdits()` maps to the CLI's `--permission-mode`
 - 🔧 **Production-ready examples** that actually work as advertised
 
 > **Note**: For the classic async generator API, see [Classic API Documentation](docs/CLASSIC_API.md).
@@ -26,10 +26,10 @@ yarn add @instantlyeasy/claude-code-sdk-ts
 pnpm add @instantlyeasy/claude-code-sdk-ts
 ```
 
-**Latest Version:** `v0.3.3` with enhanced features and working visual streaming!
+**Latest Version:** `v0.4.0` with enhanced features and working visual streaming!
 
 **Prerequisites:**
-- Node.js 18 or later
+- Node.js 20 or later
 - Claude Code CLI installed (`npm install -g @anthropic-ai/claude-code`)
 
 ## Quick Start
@@ -54,7 +54,7 @@ This SDK delegates all authentication to the Claude CLI:
 claude login
 ```
 
-The SDK does not handle authentication directly. If you see authentication errors, authenticate using the Claude CLI first.
+The SDK does not handle authentication directly and has no `apiKey` option. The CLI owns auth — either via `claude login` or an `ANTHROPIC_API_KEY` that the CLI reads from the environment. If you see authentication errors, authenticate using the Claude CLI first.
 
 ## Core Features
 
@@ -66,11 +66,13 @@ Chain methods for clean, readable code:
 const result = await claude()
   .withModel('sonnet')              // Choose model
   .allowTools('Read', 'Write')      // Configure permissions
-  .skipPermissions()                // Auto-accept edits
+  .acceptEdits()                    // Auto-accept file edits (--permission-mode acceptEdits)
   .inDirectory('/path/to/project')  // Set working directory
   .query('Refactor this code')     // Your prompt
   .asText();                       // Get response as text
 ```
+
+> `acceptEdits()` and `skipPermissions()` (full bypass) both map to the CLI's `--permission-mode` and take effect on the run.
 
 ### 📊 Response Parsing
 
@@ -120,41 +122,46 @@ await claude()
   .query('Review this code')
   .asText();
 
-// Read-only mode (no tools)
+// Read-only mode
 await claude()
-  .allowTools() // Empty = deny all
+  .allowTools() // No arguments = deny the mutating tools (Write, Edit, Bash, ...), keep Read/Grep/Glob
   .query('Explain this architecture')
   .asText();
 ```
 
 ### 💬 Session Management
 
-Maintain conversation context across queries:
+Maintain conversation context across queries. Get the session ID from the **first real query's** parser, then resume it on a new builder with `withSessionId()`:
 
 ```javascript
-const session = claude()
+// First query — keep the parser so we can read its session ID
+const firstQuery = claude()
   .withModel('sonnet')
-  .skipPermissions();
+  .skipPermissions()
+  .query('Pick a random number between 1 and 100');
 
-// First query
-const response1 = await session
-  .query('Pick a random number between 1 and 100')
-  .asText();
+const response1 = await firstQuery.asText();
+const sessionId = await firstQuery.getSessionId(); // resolved from the CLI's init message
 
-// Continue with context
-const sessionId = await session.query('').getSessionId();
-const response2 = await session
+// Resume that same conversation on a new builder
+const response2 = await claude()
+  .withModel('sonnet')
+  .skipPermissions()
   .withSessionId(sessionId)
   .query('What number did you pick?')
   .asText();
 // Claude remembers the number!
 ```
 
+> Don't call `query('')` just to obtain a session ID — an empty prompt starts a brand-new session, so the follow-up would have nothing to remember.
+
 ### 🚦 Cancellation Support
 
 Cancel long-running operations:
 
 ```javascript
+import { claude, AbortError } from '@instantlyeasy/claude-code-sdk-ts';
+
 const controller = new AbortController();
 
 // Cancel after 5 seconds
@@ -196,8 +203,8 @@ React to events during execution:
 ```javascript
 await claude()
   .onMessage(msg => console.log('Message:', msg.type))
-  .onAssistant(msg => console.log('Claude:', msg))
-  .onToolUse(tool => console.log(`Using ${tool.name}...`))
+  .onAssistant(content => console.log('Claude sent', content.length, 'block(s)')) // content is ContentBlock[]
+  .onToolUse(tool => console.log(`Using ${tool.name}...`))                        // tool is { name, input }
   .query('Perform analysis')
   .stream(async (message) => {
     // Handle streaming messages
@@ -206,105 +213,115 @@ await claude()
 
 ## Environment Variables
 
-The SDK automatically loads safe configuration from environment:
+The SDK automatically loads safe configuration from environment. The variables are namespaced so unrelated tooling can't flip them on by accident:
 
-- `DEBUG` - Enable debug mode (values: `true`, `1`, `yes`, `on`)
-- `VERBOSE` - Enable verbose output
-- `LOG_LEVEL` - Set log level (0-4)
+- `CLAUDE_SDK_DEBUG` - Enable debug mode (values: `true`, `1`, `yes`, `on`)
+- `CLAUDE_SDK_VERBOSE` - Enable verbose output
+- `CLAUDE_SDK_LOG_LEVEL` - Set log level (0-4)
 - `NODE_ENV` - Node environment
 
-**⚠️ Important**: API keys are NOT automatically loaded from `ANTHROPIC_API_KEY` for safety. This prevents accidental billing charges. See [Environment Variables Documentation](docs/ENVIRONMENT_VARIABLES.md).
+> The generic `DEBUG` / `VERBOSE` / `LOG_LEVEL` variables are intentionally **not** read — they're set ubiquitously by CI and other tools. Use the `CLAUDE_SDK_` variants.
+
+**⚠️ Important**: The SDK never reads `ANTHROPIC_API_KEY` and has no `apiKey` option — authentication belongs to the Claude CLI (see above). See [Environment Variables Documentation](docs/ENVIRONMENT_VARIABLES.md).
 
 ## Error Handling
 
-Enhanced error handling with categories and resolution hints:
+The SDK throws typed error classes. Catch the ones you care about with `instanceof` — each carries fields specific to what went wrong:
 
 ```javascript
-import { isEnhancedError, hasResolution } from '@instantlyeasy/claude-code-sdk-ts';
+import {
+  claude,
+  RateLimitError,
+  AuthenticationError,
+  TimeoutError,
+  AbortError,
+  ProcessError
+} from '@instantlyeasy/claude-code-sdk-ts';
 
 try {
   await claude().query('Task').asText();
 } catch (error) {
-  if (isEnhancedError(error)) {
-    console.error(`${error.category} error: ${error.message}`);
-    if (hasResolution(error)) {
-      console.error('Try:', error.resolution);
-    }
+  if (error instanceof RateLimitError) {
+    console.error(`Rate limited — retry after ${error.retryAfter}s`);
+  } else if (error instanceof AuthenticationError) {
+    console.error('Not authenticated. Run `claude login` and try again.');
+  } else if (error instanceof TimeoutError) {
+    console.error('The query timed out.');
+  } else if (error instanceof AbortError) {
+    console.error('The query was cancelled.');
+  } else if (error instanceof ProcessError) {
+    console.error(`Claude CLI exited with code ${error.exitCode}`);
+  } else {
+    throw error; // Unknown error — re-throw
   }
 }
 ```
 
-Error categories include:
-- `network` - Connection issues
-- `authentication` - Auth problems
-- `permission` - Access denied
-- `timeout` - Operation timeouts
-- `validation` - Invalid input
-- `cli` - Claude CLI issues
-- `configuration` - Config problems
+The classes fall into two families: the API/enhanced errors (`RateLimitError`, `AuthenticationError`, `TimeoutError`, `NetworkError`, `ValidationError`, `ToolPermissionError`) extend `BaseSDKError`, while the process/CLI errors (`ProcessError`, `AbortError`, `CLINotFoundError`, `CLIConnectionError`) extend `ClaudeSDKError`. Both ultimately extend the built-in `Error`, so a bare `catch` always works as a fallback.
 
 ## Advanced Usage
 
 ### Configuration Files & Roles
 
-Load settings and define reusable roles from YAML or JSON:
+Load settings and define reusable roles from YAML or JSON.
+
+> **`withConfigFile()` and `withRolesFile()` are async** — they read and parse a file, so each returns a `Promise`. `await` the call on its own line before you chain the synchronous builder methods; you can't chain straight off the promise.
 
 ```javascript
-// Load configuration with roles
-await claude()
-  .withConfigFile('./config/claude.yaml')
-  .withRole('developer', {
-    language: 'TypeScript',
-    framework: 'React'
-  })
+// withConfigFile applies MCP servers, global settings, and tool permissions
+const builder = claude();
+await builder.withConfigFile('./config/claude.yaml');
+
+const result = await builder
   .query('Generate component')
   .asText();
 ```
 
 #### Role System
 
-Roles provide reusable configurations with:
-- Model preferences
-- Tool permissions
-- Custom prompts with template variables
-- Context settings (temperature, max tokens)
-- Inheritance support
+Roles live in their own file (loaded with `withRolesFile()`) and provide reusable configurations with:
+- Model preference
+- Tool permissions (`allowed` / `denied`) and a permission `mode`
+- A prompting template with `${variable}` substitution
+- A system prompt (delivered to the CLI via `--append-system-prompt`)
+- Inheritance via `extends`
 
-Example YAML config with roles:
+Example roles file:
 ```yaml
 version: "1.0"
-
-globalSettings:
-  model: opus
-  timeout: 60000
 
 # Define reusable roles
 roles:
   developer:
     model: sonnet
-    tools:
-      allowed: [Read, Write, Edit]
-      denied: [Delete]
-    prompts:
-      prefix: "You are an expert ${language} developer using ${framework}."
-    
+    permissions:
+      mode: default
+      tools:
+        allowed: [Read, Write, Edit]
+        denied: [Bash]
+    promptingTemplate: |
+      You are an expert ${language} developer using ${framework}.
+
   senior-developer:
-    extends: developer  # Inherit from developer role
+    extends: developer          # Inherit from the developer role
     model: opus
     permissions:
       mode: acceptEdits
-    tools:
-      allowed: [TodoRead, TodoWrite]  # Additional tools
+      tools:
+        allowed: [TodoWrite]    # Additional tools
+    systemPrompt: |
+      Prioritize performance, readability, and test coverage.
 ```
 
 ```javascript
-// Using roles with template variables
-const response = await claude()
-  .withRolesFile('./roles.yaml')
+// Load the roles file (async), then apply a role by name with template variables
+const roleBuilder = claude();
+await roleBuilder.withRolesFile('./roles.yaml');
+
+const response = await roleBuilder
   .withRole('senior-developer', {
     language: 'TypeScript',
-    framework: 'Next.js',
-    specialty: 'performance optimization'
+    framework: 'Next.js'
   })
   .query('Optimize this React component')
   .asText();
@@ -316,9 +333,9 @@ See [Roles Documentation](docs/NEW_FEATURES.md#rolespersonas-system) for complet
 
 #### Token Usage & Costs
 ```javascript
-const parser = await claude()
-  .query('Complex task')
-  .getParser();
+// query() already returns the ResponseParser — just hold on to it
+const parser = claude()
+  .query('Complex task');
 
 const usage = await parser.getUsage();
 console.log('Tokens:', usage.totalTokens);
@@ -337,8 +354,9 @@ await claude()
   });
 ```
 
-#### Custom Models & Endpoints
+#### Custom Models & Timeouts
 ```javascript
+// withTimeout enforces a real deadline — it throws TimeoutError if the run exceeds it
 const response = await claude()
   .withModel('claude-3-opus-20240229')
   .withTimeout(30000)
@@ -346,7 +364,7 @@ const response = await claude()
   .asText();
 ```
 
-## 🚀 Enhanced Features (v0.3.3)
+## 🚀 Enhanced Features (v0.4.0)
 
 ### ✨ Visual Token Streaming
 
@@ -382,18 +400,21 @@ Handle specific error types with smart retry logic:
 ```javascript
 import { claude, detectErrorType, withRetry } from '@instantlyeasy/claude-code-sdk-ts';
 
-try {
-  const result = await withRetry(
-    async () => claude().query('Complex task').asText(),
-    {
-      maxAttempts: 3,
-      strategy: 'exponential',
-      shouldRetry: (error) => {
-        const errorType = detectErrorType(error.message);
-        return ['network_error', 'timeout_error'].includes(errorType);
-      }
+// withRetry(fn, options) returns a WRAPPER function — it does not run fn itself.
+// Call the wrapper to execute with retries.
+const run = withRetry(
+  () => claude().query('Complex task').asText(),
+  {
+    maxAttempts: 3,
+    shouldRetry: (error) => {
+      const errorType = detectErrorType(error.message);
+      return ['network_error', 'timeout_error'].includes(errorType);
     }
-  );
+  }
+);
+
+try {
+  const result = await run(); // or, as one expression: await withRetry(fn, options)()
 } catch (error) {
   const errorType = detectErrorType(error.message);
   console.log(`Failed with error type: ${errorType}`);
@@ -454,19 +475,22 @@ Creates a new query builder:
 ```typescript
 claude()
   .withModel(model: string)
-  .allowTools(...tools: ToolName[])
+  .allowTools(...tools: ToolName[])          // no args = read-only (denies mutating tools)
   .denyTools(...tools: ToolName[])
-  .skipPermissions()
-  .withTimeout(ms: number)
+  .skipPermissions()                          // full bypass (--permission-mode bypassPermissions)
+  .acceptEdits()                              // auto-accept edits (--permission-mode acceptEdits)
+  .withTimeout(ms: number)                    // throws TimeoutError on expiry
   .inDirectory(path: string)
   .withSessionId(id: string)
   .withSignal(signal: AbortSignal)
   .withLogger(logger: Logger)
-  .withConfigFile(path: string)
-  .withRole(name: string, vars?: Record<string, string>)
+  .withConfigFile(path: string): Promise<this>   // async — await before chaining
+  .withRolesFile(path: string): Promise<this>    // async — await before chaining
+  .withRole(roleName: string)                    // overload 1: apply a loaded role by name
+  .withRole(role: RoleDefinition, vars?: Record<string, string>)  // overload 2: inline definition
   .onMessage(handler: (msg: Message) => void)
-  .onAssistant(handler: (msg: AssistantMessage) => void)
-  .onToolUse(handler: (tool: ToolUseBlock) => void)
+  .onAssistant(handler: (content: ContentBlock[]) => void)
+  .onToolUse(handler: (tool: { name: string; input: Record<string, unknown> }) => void)
   .query(prompt: string): ResponseParser
 ```
 
@@ -474,12 +498,17 @@ claude()
 
 - `asText()` - Extract plain text
 - `asJSON<T>()` - Parse JSON response
-- `asResult()` - Get final result message
+- `asResult()` - Get the final result message
+- `asArray()` - Get every message as an array
 - `asToolExecutions()` - Get tool execution details
-- `findToolResults(name)` - Find specific tool results
+- `findToolResults(name)` - Find all results for a tool
+- `findToolResult(name)` - Get the first result for a tool
 - `getUsage()` - Get token usage stats
-- `getSessionId()` - Get session ID
+- `getSessionId()` - Get the session ID (resolved from the init message)
 - `stream(callback)` - Stream messages
+- `succeeded()` - Whether the run finished without errors
+- `getErrors()` - Collect run/tool error messages
+- `transform(fn)` - Apply a custom transformer to the messages
 
 ### Types
 

@@ -40,6 +40,12 @@ Role definitions with specific permissions and contexts:
 - Prompting templates with variable substitution
 - Role inheritance (e.g., seniorDeveloper extends developer)
 
+> **Note:** per-call model sampling params (`context.temperature` /
+> `context.maxTokens`) are not supported by the Claude Code CLI and are ignored
+> by the SDK (it warns once), so the sample roles omit them. Also, a role that
+> `extends` another must still declare its own `model` — role validation runs
+> before inheritance is resolved.
+
 ## YAML vs JSON
 
 ### Why Use YAML?
