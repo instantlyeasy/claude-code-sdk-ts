@@ -83,6 +83,4 @@ export interface ConfigLoadOptions {
   schema?: unknown;
   /** Override format detection */
   format?: ConfigFormat;
-  /** Use strict YAML parsing (default: true) */
-  strict?: boolean;
 }

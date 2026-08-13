@@ -49,11 +49,6 @@ export * from './types.js';
 export * from './errors.js';
 export { AbortError } from './errors.js';
 
-// Export enhanced error utilities
-export { 
-  isEnhancedError, 
-  hasResolution 
-} from './types/environment.js';
 export { API_KEY_SAFETY_WARNING } from './environment.js';
 
 // Export new fluent API (backward compatible - original query function still available)
@@ -80,10 +75,6 @@ export {
   // Per-call permissions
   createPermissionManager,
   ToolPermissionManager,
-  // Telemetry
-  createTelemetryProvider,
-  ClaudeTelemetryProvider,
-  TelemetryUtils,
   // Retry and backoff
   createRetryExecutor,
   createExponentialRetryExecutor,

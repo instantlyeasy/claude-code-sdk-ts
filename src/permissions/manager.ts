@@ -68,7 +68,9 @@ export class PermissionManager {
    * Resolve tool permission based on MCP server permission
    * Maps MCP server permissions to tool-level permissions
    */
-  resolveToolPermission(toolName: string, serverName: string): ToolPermission | undefined {
+  // Note: resolution is currently server-level; the specific tool name is not
+  // yet consulted (kept in the signature for forward compatibility).
+  resolveToolPermission(_toolName: string, serverName: string): ToolPermission | undefined {
     const serverPermission = this.getMCPServerPermission(serverName);
     
     if (!serverPermission) {

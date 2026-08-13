@@ -18,8 +18,11 @@ export interface RetryOptions {
   jitter?: boolean;
   /** Jitter factor (0-1) */
   jitterFactor?: number;
-  /** List of retryable error types */
-  retryableErrors?: Array<new (...args: unknown[]) => Error>;
+  /** List of retryable error classes (e.g. `[RateLimitError, NetworkError]`). */
+  // `any[]` args + `abstract new` so concrete classes with typed constructors
+  // are assignable (a plain `new (...args: unknown[])` rejects every real class).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  retryableErrors?: Array<abstract new (...args: any[]) => Error>;
   /** Custom retry predicate */
   shouldRetry?: (error: Error, attempt: number) => boolean;
   /** Callback on each retry attempt */

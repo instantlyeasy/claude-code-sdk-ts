@@ -5,10 +5,9 @@
  * early adopter feedback:
  * 
  * 1. Typed error handling
- * 2. Token-level streaming
+ * 2. Message-level streaming
  * 3. Per-call tool permissions
- * 4. OpenTelemetry integration
- * 5. Exponential backoff and retry
+ * 4. Exponential backoff and retry
  */
 
 // Error handling
@@ -28,13 +27,6 @@ export {
   createPermissionManager,
   ToolPermissionManager
 } from '../permissions/tool-permissions.js';
-
-// Telemetry
-export {
-  createTelemetryProvider,
-  ClaudeTelemetryProvider,
-  TelemetryUtils
-} from '../telemetry/provider-simple.js';
 
 // Retry and backoff
 export {
@@ -77,22 +69,7 @@ export type {
   DynamicPermissionFunction,
   PermissionResolution,
   PermissionSource,
-  
-  // Telemetry
-  TelemetryProvider,
-  TelemetryLogger,
-  TelemetryConfig,
-  TelemetryContext,
-  TelemetrySpan,
-  SpanStatus,
-  SpanOptions,
-  QueryMetrics,
-  ToolMetrics,
-  QueryStartEvent,
-  QueryEndEvent,
-  ToolStartEvent,
-  ToolEndEvent,
-  
+
   // Retry
   RetryOptions,
   RetryResult,

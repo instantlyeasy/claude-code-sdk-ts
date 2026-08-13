@@ -18,7 +18,7 @@ export class ToolPermissionManager {
   
   constructor(
     options: ClaudeCodeOptions,
-    rolePermissions?: Record<ToolName, ToolPermission>
+    rolePermissions?: Partial<Record<ToolName, ToolPermission>>
   ) {
     // Initialize global permissions from options
     this.globalPermissions = this.initializeGlobalPermissions(options);
@@ -155,7 +155,7 @@ export class ToolPermissionManager {
   private async checkDynamicPermissions(
     tool: ToolName,
     context: PermissionContext,
-    dynamicPermissions: Record<ToolName, DynamicPermissionFunction>
+    dynamicPermissions: Partial<Record<ToolName, DynamicPermissionFunction>>
   ): Promise<ToolPermission | undefined> {
     const dynamicFn = dynamicPermissions[tool];
     if (dynamicFn) {
@@ -187,7 +187,7 @@ export class ToolPermissionManager {
   /**
    * Update role permissions
    */
-  updateRolePermissions(permissions: Record<ToolName, ToolPermission>): void {
+  updateRolePermissions(permissions: Partial<Record<ToolName, ToolPermission>>): void {
     this.rolePermissions = new Map(Object.entries(permissions) as [ToolName, ToolPermission][]);
   }
   
@@ -230,7 +230,7 @@ export class ToolPermissionManager {
 // Export factory function
 export function createPermissionManager(
   options: ClaudeCodeOptions,
-  rolePermissions?: Record<ToolName, ToolPermission>
+  rolePermissions?: Partial<Record<ToolName, ToolPermission>>
 ): ToolPermissionManager {
   return new ToolPermissionManager(options, rolePermissions);
 }

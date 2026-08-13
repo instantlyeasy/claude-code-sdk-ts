@@ -58,26 +58,29 @@ export class ConfigLoader {
       const content = await fs.readFile(absolutePath, 'utf-8');
       const format = options?.format || this.detectFormat(filePath);
       
-      let config: unknown;
-      if (format === 'yaml') {
-        config = await this.parseYAML(content, options);
-      } else {
-        config = this.parseJSON(content, filePath);
-      }
-      
-      // Handle inheritance if extends field is present
-      if (config && config.extends) {
-        const baseConfigPath = path.resolve(path.dirname(absolutePath), config.extends);
+      const parsed: unknown = format === 'yaml'
+        ? await this.parseYAML(content, options)
+        : this.parseJSON(content, filePath);
+      const cfg = (parsed ?? {}) as Record<string, unknown> & { extends?: string };
+
+      // Handle inheritance if an `extends` field is present.
+      if (cfg.extends) {
+        const baseConfigPath = path.resolve(path.dirname(absolutePath), cfg.extends);
         const baseConfig = await this.loadFromFile(baseConfigPath, options);
-        delete config.extends; // Remove extends field after processing
-        const merged = this.mergeConfigs(baseConfig, config);
-        this.loadedConfigs.set(absolutePath, merged);
-        return merged;
+        delete cfg.extends; // Remove extends field after processing
+        const merged = this.mergeConfigs(baseConfig, cfg as unknown as MCPConfigSchema);
+        // Validate the MERGED result (previously the extends path skipped this,
+        // letting invalid permission values through). Then expand env vars.
+        const validated = this.validateConfig(merged);
+        const expanded = this.expandEnvironmentVariables(validated);
+        this.loadedConfigs.set(absolutePath, expanded);
+        return expanded;
       }
-      
-      this.validateConfig(config);
-      this.loadedConfigs.set(absolutePath, config);
-      return config;
+
+      const validated = this.validateConfig(cfg);
+      const expanded = this.expandEnvironmentVariables(validated);
+      this.loadedConfigs.set(absolutePath, expanded);
+      return expanded;
     } catch (error) {
       // Clean up on error
       this.loadedConfigs.delete(absolutePath);
@@ -103,14 +106,13 @@ export class ConfigLoader {
   /**
    * Parse YAML content
    */
-  private async parseYAML(content: string, options?: ConfigLoadOptions): Promise<unknown> {
+  private async parseYAML(content: string, _options?: ConfigLoadOptions): Promise<unknown> {
     try {
       // Dynamically import js-yaml to avoid loading it when not needed
       const yaml = await import('js-yaml');
-      return yaml.load(content, {
-        strict: options?.strict ?? true,
-        schema: yaml.JSON_SCHEMA
-      });
+      // Note: js-yaml has no `strict` option; JSON_SCHEMA already rejects the
+      // unsafe/implicit YAML types that "strict" was intended to guard against.
+      return yaml.load(content, { schema: yaml.JSON_SCHEMA });
     } catch (error) {
       throw new ConfigValidationError(`Invalid YAML: ${(error as Error).message}`);
     }
@@ -149,7 +151,7 @@ export class ConfigLoader {
       this.validateTools(cfg.tools);
     }
 
-    return cfg as MCPConfigSchema;
+    return cfg as unknown as MCPConfigSchema;
   }
 
   /**
@@ -167,7 +169,9 @@ export class ConfigLoader {
     if (config.tools) {
       Object.entries(config.tools).forEach(([toolName, permission]) => {
         // Handle complex tool configs that might have nested structure
-        const permValue = typeof permission === 'object' && permission !== null ? permission.permission : permission;
+        const permValue = typeof permission === 'object' && permission !== null
+          ? (permission as { permission?: ToolPermission }).permission
+          : permission;
         if (permValue && !validPermissions.includes(permValue)) {
           throw new Error(
             `Invalid permission value '${permValue}' at mcpServers.${serverName}.tools.${toolName}`
@@ -320,7 +324,7 @@ export class ConfigLoader {
     
     const expandValue = (value: unknown): unknown => {
       if (typeof value === 'string') {
-        return value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+        return value.replace(/\$\{([^}]+)\}/g, (_match, varName) => {
           const envValue = process.env[varName];
           if (envValue === undefined) {
             throw new Error(`Environment variable ${varName} not found`);
@@ -328,14 +332,15 @@ export class ConfigLoader {
           return envValue;
         });
       } else if (typeof value === 'object' && value !== null) {
-        Object.keys(value).forEach(key => {
-          value[key] = expandValue(value[key]);
+        const record = value as Record<string, unknown>;
+        Object.keys(record).forEach(key => {
+          record[key] = expandValue(record[key]);
         });
       }
       return value;
     };
-    
-    return expandValue(expanded);
+
+    return expandValue(expanded) as MCPConfigSchema;
   }
 
   /**

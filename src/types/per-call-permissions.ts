@@ -14,9 +14,9 @@ export interface ToolOverrides {
   /** Tools to deny for this specific call */
   deny?: ToolName[];
   /** Specific permissions per tool */
-  permissions?: Record<ToolName, ToolPermission>;
+  permissions?: Partial<Record<ToolName, ToolPermission>>;
   /** Dynamic permissions based on context */
-  dynamicPermissions?: Record<ToolName, DynamicPermissionFunction>;
+  dynamicPermissions?: Partial<Record<ToolName, DynamicPermissionFunction>>;
 }
 
 // Permission context (alias for QueryContext for backward compatibility)
@@ -67,7 +67,7 @@ export interface ResolvedPermissions {
   /** Final list of denied tools */
   denied: ToolName[];
   /** Source of each permission decision */
-  sources?: Record<ToolName, PermissionSource>;
+  sources?: Partial<Record<ToolName, PermissionSource>>;
 }
 
 // Source details of a permission decision

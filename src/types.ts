@@ -1,24 +1,33 @@
-// Permission modes for Claude Code operations
-export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
+// Permission modes for Claude Code operations. Mirrors the CLI's
+// `--permission-mode` choices (plus `default`, which emits no flag).
+export type PermissionMode =
+  | 'default'
+  | 'acceptEdits'
+  | 'bypassPermissions'
+  | 'plan'
+  | 'auto'
+  | 'dontAsk'
+  | 'manual';
 
-// Tool names that can be allowed or denied
-export type ToolName = 
+// Well-known built-in tool names. The CLI also accepts MCP tool names
+// (`mcp__server__tool`) and scoped rule patterns (`Bash(npm run test:*)`), so the
+// public `ToolName` type is intentionally open: any string is accepted, while the
+// known names still autocomplete.
+export type KnownToolName =
   | 'Read'
   | 'Write'
   | 'Edit'
   | 'Bash'
   | 'Grep'
   | 'Glob'
-  | 'LS'
-  | 'MultiEdit'
-  | 'NotebookRead'
   | 'NotebookEdit'
   | 'WebFetch'
-  | 'TodoRead'
   | 'TodoWrite'
   | 'WebSearch'
-  | 'Task'
-  | 'MCPTool';
+  | 'Task';
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type ToolName = KnownToolName | (string & {});
 
 // Content block types
 export interface TextBlock {
@@ -33,6 +42,18 @@ export interface ToolUseBlock {
   input: Record<string, unknown>;
 }
 
+// Extended-thinking content blocks the CLI can emit in assistant messages.
+export interface ThinkingBlock {
+  type: 'thinking';
+  thinking: string;
+  signature?: string;
+}
+
+export interface RedactedThinkingBlock {
+  type: 'redacted_thinking';
+  data: string;
+}
+
 export interface ToolResultBlock {
   type: 'tool_result';
   tool_use_id: string;
@@ -40,7 +61,15 @@ export interface ToolResultBlock {
   is_error?: boolean;
 }
 
-export type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock;
+export type ContentBlock = TextBlock | ThinkingBlock | RedactedThinkingBlock | ToolUseBlock | ToolResultBlock;
+
+// Named usage type matching the CLI's result `usage` object.
+export interface Usage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+}
 
 // Message types
 export interface UserMessage {
@@ -134,20 +163,23 @@ export interface ClaudeCodeOptions {
   deniedTools?: ToolName[];
   mcpServers?: MCPServer[];
   permissionMode?: PermissionMode;
+  /** @deprecated Not supported by the claude CLI; ignored (warns once). Removed in a future major. */
   context?: string[];
+  /** @deprecated Not supported by the claude CLI; ignored (warns once). Removed in a future major. */
   maxTokens?: number;
+  /** @deprecated Not supported by the claude CLI; ignored (warns once). Removed in a future major. */
   temperature?: number;
   cwd?: string;
   env?: Record<string, string>;
   timeout?: number;
   debug?: boolean;
-  // New permission management options
+  /** @deprecated Not supported by the claude CLI; ignored (warns once). Removed in a future major. */
   mcpServerPermissions?: MCPServerPermissionConfig;
-  // Configuration file path
+  /** @deprecated Not supported by the claude CLI; ignored (warns once). Removed in a future major. */
   configFile?: string;
-  // Role to apply
+  /** @deprecated Not supported by the claude CLI; ignored (warns once). Removed in a future major. */
   role?: string;
-  // System prompt override
+  // System prompt (sent to the CLI via --append-system-prompt).
   systemPrompt?: string;
   // AbortSignal for cancellation
   signal?: AbortSignal;
@@ -263,8 +295,10 @@ export * from './types/enhanced-errors.js';
 // Re-export streaming types
 export * from './types/streaming.js';
 
-// Re-export per-call permission types (excluding ToolPermission which is already exported)
-export {
+// Re-export per-call permission types (excluding ToolPermission which is already
+// exported, and ToolPermissionManager which is exported as a class from index.ts
+// — re-exporting the like-named interface here shadowed it and confused consumers).
+export type {
   ToolOverrides,
   PermissionContext,
   QueryContext,
@@ -276,12 +310,8 @@ export {
   PermissionResolverConfig,
   ConflictResolution,
   AdvancedPermissionOptions,
-  PermissionDecision,
-  ToolPermissionManager
+  PermissionDecision
 } from './types/per-call-permissions.js';
-
-// Re-export telemetry types
-export * from './types/telemetry.js';
 
 // Re-export retry types
 export * from './types/retry.js';

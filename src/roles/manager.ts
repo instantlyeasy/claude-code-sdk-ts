@@ -96,13 +96,11 @@ export class RoleManager {
   /**
    * Parse YAML content
    */
-  private async parseYAML(content: string, options?: ConfigLoadOptions): Promise<unknown> {
+  private async parseYAML(content: string, _options?: ConfigLoadOptions): Promise<unknown> {
     try {
       const yaml = await import('js-yaml');
-      return yaml.load(content, {
-        strict: options?.strict ?? true,
-        schema: yaml.JSON_SCHEMA
-      });
+      // js-yaml has no `strict` option; JSON_SCHEMA is the safe schema.
+      return yaml.load(content, { schema: yaml.JSON_SCHEMA });
     } catch (error) {
       throw new ConfigValidationError(`Invalid YAML: ${(error as Error).message}`);
     }
@@ -124,14 +122,11 @@ export class RoleManager {
     const content = await fs.readFile(filePath, 'utf-8');
     const format = options?.format || this.detectFormat(filePath);
     
-    let config: RolesConfig;
-    if (format === 'yaml') {
-      config = await this.parseYAML(content, options);
-    } else {
-      config = this.parseJSON(content, filePath);
-    }
-    
-    this.loadFromConfig(config);
+    const parsed: unknown = format === 'yaml'
+      ? await this.parseYAML(content, options)
+      : this.parseJSON(content, filePath);
+
+    this.loadFromConfig(parsed as RolesConfig);
   }
 
   /**
@@ -198,7 +193,9 @@ export class RoleManager {
 
     // Apply inheritance from parent to child
     for (let i = chain.chain.length - 1; i >= 0; i--) {
-      const currentRole = this.getRole(chain.chain[i]);
+      const roleName = chain.chain[i];
+      if (!roleName) continue;
+      const currentRole = this.getRole(roleName);
       if (!currentRole) continue;
       
       resolved = this.mergeRoles(resolved, currentRole);
@@ -470,11 +467,11 @@ export class RoleManager {
    * Interpolate template variables
    */
   private interpolateTemplate(template: string, variables: Record<string, string>): string {
-    return template.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+    return template.replace(/\$\{([^}]+)\}/g, (_match, varName) => {
       if (!(varName in variables)) {
         throw new Error(`Missing template variable: ${varName}`);
       }
-      return variables[varName];
+      return variables[varName] ?? '';
     });
   }
 

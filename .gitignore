@@ -35,8 +35,8 @@ yarn-error.log*
 # Package files
 *.tgz
 
-# Lock files (let users generate their own)
-package-lock.json
+# The npm lockfile IS committed for reproducible installs/CI.
+# (npm never packs it into the published tarball, so consumers are unaffected.)
 yarn.lock
 pnpm-lock.yaml
 
@@ -44,4 +44,14 @@ pnpm-lock.yaml
 ANNOUNCEMENT.md
 .temp
 .dev
+
+# Flow-Next (local setup — not part of the published package)
+.flow/
+.codex/
+.clawpatch/
+SPEC.md
+STRATEGY.md
+GLOSSARY.md
+CLAUDE.md
+AGENTS.md
 

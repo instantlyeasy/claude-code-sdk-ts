@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-08-13
+
+Hygiene, correctness of the type surface, and honest packaging. Builds on 0.3.4.
+See `RELEASE_NOTES_0.4.0.md`.
+
+### Changed (breaking)
+- **Node 18 support dropped.** `engines` now requires Node `>=20` (18 and 20 are
+  both EOL).
+- **Removed the non-functional telemetry surface.** `createTelemetryProvider`,
+  `ClaudeTelemetryProvider`, and `TelemetryUtils` are gone — the provider was a
+  stub whose `getLogger()` threw "not fully implemented yet". Real observability
+  is planned for the v1 rebuild on the official Agent SDK.
+- **Removed the unreachable enhanced-error system** (`errors/enhanced.ts`) and
+  the `isEnhancedError()` / `hasResolution()` guards, which could never match any
+  error the SDK actually throws.
+- The six options that the CLI doesn't support (`temperature`, `maxTokens`,
+  `context`, `role`, `configFile`, `mcpServerPermissions`) are now marked
+  `@deprecated`; they are still accepted and ignored with a one-time warning
+  (from 0.3.4), and will be removed in v1.
+
+### Fixed
+- **`npm run typecheck` now passes.** The shipped source failed its own
+  `tsc --noEmit` with 27 errors (config loader, roles manager, telemetry). The
+  build is now gated on typecheck via `prepublishOnly`.
+- **CJS TypeScript consumers no longer get TS1479.** The `exports` map now maps
+  per-condition types (`./dist/index.d.cts` for `require`). Verified with
+  `@arethetypeswrong/cli` (all green).
+- Config `extends` chains are now validated (previously the inheritance path
+  skipped validation entirely), and environment-variable expansion in config
+  files is actually invoked (it was defined but never called).
+
+### Added
+- **Tests + CI.** A GitHub Actions workflow runs typecheck, lint, tests, and
+  build on Node 20/22/24; a `package-lock.json` is committed; `prepublishOnly`
+  gates releases.
+- **Type fidelity.** `ToolName` is now an open union (accepts MCP tool names and
+  scoped patterns); permission records are `Partial` (no more "must specify all
+  16 tools"); `retryableErrors` accepts concrete error classes; `PermissionMode`
+  includes `plan`/`auto`/`dontAsk`/`manual`; added `ThinkingBlock` and a named
+  `Usage` type.
+
+### Packaging
+- `main` points at the CJS build; `sideEffects: false`; `examples/` and
+  sourcemaps removed from the published tarball (933 kB → ~338 kB); optional
+  peer dependency on `@anthropic-ai/claude-code` declared; `./package.json`
+  export added; dead `.npmignore` and stale `RELEASE_NOTES_0.3.0.md` removed.
+- Migrated lint to ESLint 9 flat config + typescript-eslint 8 (clears the
+  previous 6 high `npm audit` findings, all dev-only). Runtime-dependency major
+  bumps (execa 10, js-yaml 5, which 7) and vitest 4 are deferred to a follow-up.
+
 ## [0.3.4] - 2026-08-13
 
 Correctness hotfix. No public API was removed; several long-broken options now
@@ -64,6 +114,22 @@ work or are safely ignored instead of aborting the query. See `RELEASE_NOTES_0.3
   lifecycle via a mock CLI) — the first tests since the suite was removed at
   v0.3.0.
 
+## [0.3.3] - 2025-06-27
+
+### Fixed
+- CLI output parsing adjustments and packaging/exports fixes
+- Replaced a symlink in the published package
+
+## [0.3.2] - 2025-06-27
+
+### Fixed
+- Configuration-file loading restoration and related fixes
+
+## [0.3.1] - 2025-06-27
+
+### Fixed
+- Critical fix-release for exports and CLI output handling
+
 ## [0.3.0] - 2025-06-26
 
 ### Added
@@ -105,7 +171,7 @@ work or are safely ignored instead of aborting the query. See `RELEASE_NOTES_0.3
 - Environment variable support
 - Enhanced error handling framework
 
-## [0.2.1] - 2025-01-21
+## [0.2.1] - 2025-06-22
 
 ### Added
 - **YAML Configuration**: Support for YAML config files with auto-detection
@@ -117,9 +183,8 @@ work or are safely ignored instead of aborting the query. See `RELEASE_NOTES_0.3
 - YAML support for better config readability with comments
 - Environment variable expansion in configurations
 - Role inheritance for DRY configuration
-- Full test coverage for new configuration features
 
-## [0.2.0] - 2025-01-15
+## [0.2.0] - 2025-06-22
 
 ### Added
 - **Fluent API**: New chainable API with `claude()` for improved developer experience
@@ -131,15 +196,14 @@ work or are safely ignored instead of aborting the query. See `RELEASE_NOTES_0.3
 ### Improved
 - 100% backward compatible - existing code continues to work
 - Comprehensive TypeScript support throughout
-- Extensive test coverage for all new features
 - New examples demonstrating fluent API patterns
 
-## [0.1.4] - 2025-01-10
+## [0.1.4] - 2025-06-22
 
 ### Fixed
 - Include examples in npm package
 
-## [0.1.2] - 2025-01-08
+## [0.1.2] - 2025-06-22
 
 ### Fixed
 - Fixed CLI command search to properly find `claude` command
@@ -147,7 +211,7 @@ work or are safely ignored instead of aborting the query. See `RELEASE_NOTES_0.3
 - Improved error messages for authentication failures
 - Updated documentation to clarify authentication flow
 
-## [0.1.1] - 2025-01-05
+## [0.1.1] - 2025-06-21
 
 ### Added
 - Added `--print` flag for non-interactive mode
@@ -156,7 +220,7 @@ work or are safely ignored instead of aborting the query. See `RELEASE_NOTES_0.3
 - Fixed CLI path resolution
 - Initial TypeScript error fixes
 
-## [0.1.0] - 2025-01-01
+## [0.1.0] - 2025-06-21
 
 ### Added
 - Initial release
