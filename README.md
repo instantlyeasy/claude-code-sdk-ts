@@ -8,6 +8,12 @@
 
 Unofficial TypeScript SDK for [Claude Code](https://github.com/anthropics/claude-code) - the powerful CLI tool for interacting with Claude.
 
+> **🚧 Preview — the v1 API (alpha):** the next major version keeps this fluent API
+> but runs on the official `@anthropic-ai/claude-agent-sdk`, unlocking in-process
+> MCP tools, hooks, permission callbacks, real token streaming, structured
+> outputs, and bidirectional sessions. Try it from the `./v1` subpath — see
+> **[docs/V1.md](docs/V1.md)**.
+
 **✨ What's New in v0.4.0:**
 - 🎬 **Interactive streaming session** with working visual typewriter effects
 - 🛡️ **Typed error handling** you catch with `instanceof` — no error categories, no wrappers
