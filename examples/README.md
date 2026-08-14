@@ -4,7 +4,11 @@ This directory contains practical examples demonstrating various use cases for t
 
 ## 📁 Directory Structure
 
-- **`fluent-api/`** - Modern examples using the fluent API with method chaining
+- **`v1/`** - ⭐ The fluent examples ported to the **v1 API (alpha)** — same builder
+  ergonomics on the official Agent SDK backend, plus v1-only capabilities
+  (real sessions, custom in-process tools, structured outputs, real token
+  streaming). See [docs/V1.md](../docs/V1.md).
+- **`fluent-api/`** - Modern examples using the classic fluent API with method chaining
 - **`previous-syntax/`** - Examples using the traditional function-based API
 
 ## 🎯 Choose Your API Style
