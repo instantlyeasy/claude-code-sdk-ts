@@ -72,10 +72,14 @@ API until it is promoted to the default at 1.0.0.
       `setPermissionMode()` proxy the official `Query` controls (`.controls`
       exposes the raw `Query` for the rest). `close()` ends input + tears down.
       Covered by tests (echo round-trip + control-call assertions).
-- [ ] Decide the dependency story: at 1.0 the official SDK becomes the core, and
-      the classic subprocess transport is either removed or kept behind a
-      `./legacy` subpath. (Right now the official SDK is a hard dependency of the
-      whole package on this branch; classic-only users shouldn't pay for it.)
+- [x] **Dependency story (1.0.0-alpha.1):** the official SDK is now an OPTIONAL
+      peerDependency (`>=0.3.231`) + devDependency, no longer a hard dependency.
+      Verified by consumer simulation: installing the package without the peer is
+      ~2.5 MB, the classic root import works, and importing `/v1` fails with
+      `ERR_MODULE_NOT_FOUND: Cannot find package '@anthropic-ai/claude-agent-sdk'`
+      (names exactly what to install); with the peer installed, `/v1` loads.
+      The classic dist entries contain zero references to the official SDK.
+      (Whether classic moves behind `./legacy` at 1.0 stays an open question.)
 - [ ] Migration guide `0.4.x (classic) → 1.0 (official-backed)`.
 - [ ] Integration test against the real bundled CLI (opt-in, token-costing) in CI.
 

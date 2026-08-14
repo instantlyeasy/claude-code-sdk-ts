@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.1] - 2026-08-14
+
+### Changed (breaking vs alpha.0)
+- **`@anthropic-ai/claude-agent-sdk` is now an optional peerDependency**, not a
+  hard dependency. Installing this package alone is ~2.5 MB again; the official
+  SDK (~300 MB with its bundled CLI binary) is installed only by `/v1` users:
+  `npm install @anthropic-ai/claude-agent-sdk`. Without it, the classic root
+  import works unchanged and importing `/v1` fails with a clear
+  `Cannot find package '@anthropic-ai/claude-agent-sdk'` error.
+
+## [1.0.0-alpha.0] - 2026-08-14
+
+First alpha of the v1 API (`./v1` subpath): the fluent `claude()` builder backed
+by the official `@anthropic-ai/claude-agent-sdk` — one-shot queries with the
+shared `ResponseParser`, `canUseTool`, hooks, in-process MCP servers, session
+utilities, structured outputs, real token streaming (`streamText()`), and
+persistent bidirectional sessions (`session()`) with mid-run
+interrupt/setModel/setPermissionMode. See `docs/V1.md`.
+
 ## [0.4.0] - 2026-08-13
 
 Hygiene, correctness of the type surface, and honest packaging. Builds on 0.3.4.

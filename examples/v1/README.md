@@ -7,11 +7,18 @@ migration table.
 
 ## Setup
 
-From the repository root (the `dist/` build is required — it is not committed):
+From the repository root (the `dist/` build is required — it is not committed;
+the official SDK is a devDependency here, so `npm install` covers it):
 
 ```bash
 npm install && npm run build
 node examples/v1/hello-world.js
+```
+
+In your own project, the official SDK is an **optional peer** — install both:
+
+```bash
+npm install @instantlyeasy/claude-code-sdk-ts@alpha @anthropic-ai/claude-agent-sdk
 ```
 
 Auth is handled by the Claude Code CLI (`claude login` or `ANTHROPIC_API_KEY`).
