@@ -66,8 +66,12 @@ API until it is promoted to the default at 1.0.0.
       word-splitting. `streamTextDeltas` / `runV1QueryRaw` also exported.
 - [ ] Surface richer message variants (thinking blocks, non-text `stream_event`,
       `task_*`) through the adapter or a v1-native message type.
-- [ ] Interrupts / `setPermissionMode` / `setModel` via the official `Query`
-      control methods (needs a persistent-session builder mode).
+- [x] **Bidirectional sessions + mid-run controls**: `.session(initialPrompt?)`
+      returns a `V1Session` — `send()` queues messages over streaming input, the
+      session is `AsyncIterable<Message>`, and `interrupt()` / `setModel()` /
+      `setPermissionMode()` proxy the official `Query` controls (`.controls`
+      exposes the raw `Query` for the rest). `close()` ends input + tears down.
+      Covered by tests (echo round-trip + control-call assertions).
 - [ ] Decide the dependency story: at 1.0 the official SDK becomes the core, and
       the classic subprocess transport is either removed or kept behind a
       `./legacy` subpath. (Right now the official SDK is a hard dependency of the

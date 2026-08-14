@@ -17,6 +17,7 @@ import { ResponseParser } from '../parser.js';
 import type { Logger } from '../logger.js';
 import type { V1Options } from './types.js';
 import { runV1Query, streamTextDeltas } from './query-runner.js';
+import { V1Session } from './session.js';
 import type {
   CanUseTool,
   HookEvent,
@@ -256,6 +257,17 @@ export class V1QueryBuilder {
    */
   streamText(prompt: string): AsyncGenerator<string> {
     return streamTextDeltas(prompt, this.options);
+  }
+
+  /**
+   * Open a persistent bidirectional session: send multiple messages, iterate the
+   * live message stream, and use mid-run controls (interrupt / setModel /
+   * setPermissionMode). Close it with `await session.close()`.
+   *
+   * @param initialPrompt optional first message to send immediately
+   */
+  session(initialPrompt?: string): V1Session {
+    return new V1Session(this.options, initialPrompt);
   }
 
   static create(): V1QueryBuilder {

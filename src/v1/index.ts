@@ -7,6 +7,7 @@
  *   import { claude } from '@instantlyeasy/claude-code-sdk-ts/v1';
  */
 export { claude, V1QueryBuilder } from './builder.js';
+export { V1Session } from './session.js';
 export { runV1Query, runV1QueryRaw, streamTextDeltas } from './query-runner.js';
 export { toOfficialOptions } from './options.js';
 export { adaptOfficialMessage } from './adapter.js';

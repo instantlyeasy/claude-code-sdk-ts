@@ -2,16 +2,43 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Capture the params the wrapper passes to the official SDK, and drive the
 // message stream from a per-test fixture. The official CLI is never spawned.
-const captured: { prompt?: unknown; options?: Record<string, unknown> } = {};
+const captured: {
+  prompt?: unknown;
+  options?: Record<string, unknown>;
+  controlCalls: Array<[string, unknown]>;
+} = { controlCalls: [] };
 let fixture: unknown[] = [];
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: (params: { prompt: unknown; options: Record<string, unknown> }) => {
     captured.prompt = params.prompt;
     captured.options = params.options;
-    return (async function* () {
+
+    // Streaming-input mode: echo each queued user message back as an assistant
+    // turn (so session tests can assert round-trips), then emit the fixture.
+    const gen = (async function* () {
+      const p = params.prompt;
+      if (p && typeof p === 'object' && Symbol.asyncIterator in (p as object)) {
+        for await (const userMsg of p as AsyncIterable<{ message: { content: unknown } }>) {
+          yield {
+            type: 'assistant',
+            message: { content: [{ type: 'text', text: `echo:${String(userMsg.message.content)}` }] },
+            session_id: 'live-1',
+            parent_tool_use_id: null
+          };
+        }
+        yield { type: 'result', subtype: 'success', result: 'session done', session_id: 'live-1' };
+        return;
+      }
       for (const m of fixture) yield m;
     })();
+
+    // Query-like surface: generator + control methods.
+    return Object.assign(gen, {
+      interrupt: vi.fn(async () => { captured.controlCalls.push(['interrupt', null]); return {}; }),
+      setModel: vi.fn(async (m?: string) => { captured.controlCalls.push(['setModel', m]); }),
+      setPermissionMode: vi.fn(async (m: string) => { captured.controlCalls.push(['setPermissionMode', m]); })
+    });
   },
   // Stubs for the symbols the ./v1 entry re-exports, so the re-export wiring is
   // exercised without the real (CLI-spawning) implementations.
@@ -41,6 +68,7 @@ beforeEach(() => {
   fixture = officialStream;
   captured.prompt = undefined;
   captured.options = undefined;
+  captured.controlCalls = [];
 });
 
 describe('v1 option mapping', () => {
@@ -189,6 +217,46 @@ describe('v1 real partial streaming', () => {
     expect(tokens).toEqual(['Hel', 'lo', '!']);
     // and it turned on partial messages
     expect(captured.options?.includePartialMessages).toBe(true);
+  });
+});
+
+describe('v1 bidirectional session', () => {
+  it('streams multiple sent messages and completes on close()', async () => {
+    const s = claude().withModel('sonnet').session('first');
+    s.send('second');
+
+    const seen: string[] = [];
+    const iterate = (async () => {
+      for await (const msg of s) {
+        if (msg.type === 'assistant' && Array.isArray(msg.content)) {
+          const block = msg.content[0];
+          if (block?.type === 'text') seen.push(block.text);
+        }
+        if (msg.type === 'result') break;
+      }
+    })();
+
+    // Give the echo loop a tick, then end the input so the stream completes.
+    await new Promise(r => setTimeout(r, 20));
+    await s.close();
+    await iterate;
+
+    expect(seen).toEqual(['echo:first', 'echo:second']);
+    // Streaming-input mode: the prompt passed to the official SDK is an AsyncIterable.
+    expect(typeof (captured.prompt as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator]).toBe('function');
+  });
+
+  it('exposes interrupt / setModel / setPermissionMode controls', async () => {
+    const s = claude().session();
+    await s.interrupt();
+    await s.setModel('opus');
+    await s.setPermissionMode('acceptEdits');
+    await s.close();
+    expect(captured.controlCalls).toEqual([
+      ['interrupt', null],
+      ['setModel', 'opus'],
+      ['setPermissionMode', 'acceptEdits']
+    ]);
   });
 });
 
