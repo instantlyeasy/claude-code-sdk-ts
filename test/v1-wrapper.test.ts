@@ -174,6 +174,24 @@ describe('v1 sessions', () => {
   });
 });
 
+describe('v1 real partial streaming', () => {
+  it('streamText() yields the model\'s actual text deltas from stream_event', async () => {
+    fixture = [
+      { type: 'system', subtype: 'init', session_id: 's1' },
+      { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hel' } } },
+      { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'lo' } } },
+      { type: 'stream_event', event: { type: 'content_block_start', delta: {} } }, // ignored (not a text_delta)
+      { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '!' } } },
+      { type: 'result', subtype: 'success', result: 'Hello!', session_id: 's1' }
+    ];
+    const tokens: string[] = [];
+    for await (const t of claude().streamText('hi')) tokens.push(t);
+    expect(tokens).toEqual(['Hel', 'lo', '!']);
+    // and it turned on partial messages
+    expect(captured.options?.includePartialMessages).toBe(true);
+  });
+});
+
 describe('v1 structured outputs', () => {
   it('withOutputFormat maps to the official json_schema shape', () => {
     const opts = toOfficialOptions({ outputFormat: { type: 'json_schema', schema: { type: 'object' } } });

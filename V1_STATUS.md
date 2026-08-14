@@ -60,9 +60,11 @@ API until it is promoted to the default at 1.0.0.
 - [x] **Structured outputs**: `.withOutputFormat(schema)` (maps to the official
       `{type:'json_schema', schema}`) and `ResponseParser.asStructured<T>()` reading
       the result's `structured_output`. Covered by tests.
-- [ ] **Partial streaming** (`includePartialMessages`) → a real token stream
-      backed by `stream_event` deltas (replaces the classic word-splitting).
-- [ ] Surface richer message variants (thinking blocks, `stream_event`,
+- [x] **Partial streaming**: `.streamText(prompt)` yields the model's real
+      incremental text tokens from the official `stream_event` deltas (auto-sets
+      `includePartialMessages`) — genuine streaming, not the classic
+      word-splitting. `streamTextDeltas` / `runV1QueryRaw` also exported.
+- [ ] Surface richer message variants (thinking blocks, non-text `stream_event`,
       `task_*`) through the adapter or a v1-native message type.
 - [ ] Interrupts / `setPermissionMode` / `setModel` via the official `Query`
       control methods (needs a persistent-session builder mode).

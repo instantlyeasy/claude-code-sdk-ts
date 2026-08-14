@@ -16,7 +16,7 @@ import type { ToolName, PermissionMode, Message } from '../types.js';
 import { ResponseParser } from '../parser.js';
 import type { Logger } from '../logger.js';
 import type { V1Options } from './types.js';
-import { runV1Query } from './query-runner.js';
+import { runV1Query, streamTextDeltas } from './query-runner.js';
 import type {
   CanUseTool,
   HookEvent,
@@ -241,6 +241,21 @@ export class V1QueryBuilder {
   /** Raw message stream (official SDK messages adapted to classic `Message`s). */
   queryRaw(prompt: string): AsyncGenerator<Message> {
     return runV1Query(prompt, this.options);
+  }
+
+  /**
+   * Stream real incremental text tokens as the model generates them (backed by
+   * the official SDK's `stream_event` deltas — not the classic word-splitting).
+   *
+   * @example
+   * ```typescript
+   * for await (const token of claude().streamText('Write a haiku')) {
+   *   process.stdout.write(token);
+   * }
+   * ```
+   */
+  streamText(prompt: string): AsyncGenerator<string> {
+    return streamTextDeltas(prompt, this.options);
   }
 
   static create(): V1QueryBuilder {
