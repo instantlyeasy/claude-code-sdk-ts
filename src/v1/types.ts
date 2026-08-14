@@ -2,8 +2,14 @@
  * v1 builder state. A superset of the classic options that this fluent wrapper
  * can express, mapped to the official Agent SDK by `toOfficialOptions`.
  */
-import type { ToolName, PermissionMode, MCPServer } from '../types.js';
-import type { CanUseTool, HookEvent, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk';
+import type { ToolName, PermissionMode } from '../types.js';
+import type {
+  CanUseTool,
+  HookEvent,
+  HookCallbackMatcher,
+  McpServerConfig,
+  OutputFormat
+} from '@anthropic-ai/claude-agent-sdk';
 
 export interface V1Options {
   model?: string;
@@ -20,11 +26,13 @@ export interface V1Options {
   abortController?: AbortController;
   pathToClaudeCodeExecutable?: string;
   systemPrompt?: string;
-  /** Official SDK MCP server map (name → config). Passed through untouched. */
-  mcpServers?: Record<string, MCPServer & { type?: string; url?: string }>;
+  /** Official SDK MCP server map (name → config): stdio | sse | http | in-process sdk. */
+  mcpServers?: Record<string, McpServerConfig>;
   /** Official SDK permission callback — invoked when a tool would prompt. */
   canUseTool?: CanUseTool;
   /** Official SDK hooks: event → matchers. Built up by the builder's hook methods. */
   hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
+  /** Structured-output request (JSON schema). Result arrives on `structured_output`. */
+  outputFormat?: OutputFormat;
   includePartialMessages?: boolean;
 }

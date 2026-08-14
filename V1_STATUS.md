@@ -51,12 +51,15 @@ API until it is promoted to the default at 1.0.0.
       conveniences build the official `Partial<Record<HookEvent, HookCallbackMatcher[]>>`.
       The official `CanUseTool` / `PermissionResult` / `HookEvent` / `HookCallback`
       types are re-exported from the `./v1` entry. Covered by tests.
-- [ ] **In-process MCP servers**: re-export `createSdkMcpServer` / `tool()` and a
-      `.withMCPServer()` builder method.
-- [ ] **Sessions**: `.resume()/.fork()`, plus `listSessions()/getSessionMessages()`
-      passthroughs.
-- [ ] **Structured outputs** (`outputFormat: json_schema`) → a `.asStructured<T>()`
-      parser helper.
+- [x] **In-process MCP servers**: `createSdkMcpServer` / `tool()` re-exported from
+      `./v1`, plus a `.withMCPServer(server)` builder method that keys the server
+      by name (accepts the in-process sdk config or any named stdio/SSE/HTTP config).
+- [x] **Sessions**: `.resume(id)` / `.forkSession()` on the builder, plus
+      `listSessions` / `getSessionInfo` / `getSessionMessages` / `forkSession` /
+      `renameSession` / `deleteSession` re-exported from `./v1`.
+- [x] **Structured outputs**: `.withOutputFormat(schema)` (maps to the official
+      `{type:'json_schema', schema}`) and `ResponseParser.asStructured<T>()` reading
+      the result's `structured_output`. Covered by tests.
 - [ ] **Partial streaming** (`includePartialMessages`) → a real token stream
       backed by `stream_event` deltas (replaces the classic word-splitting).
 - [ ] Surface richer message variants (thinking blocks, `stream_event`,

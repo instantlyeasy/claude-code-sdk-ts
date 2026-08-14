@@ -30,6 +30,7 @@ export interface OfficialMessageLike {
     cache_read_input_tokens?: number;
   };
   modelUsage?: Record<string, unknown>;
+  structured_output?: unknown;
   permission_denials?: Array<{ tool_name: string; tool_use_id: string; tool_input: Record<string, unknown> }>;
   model?: string;
   permissionMode?: string;
@@ -83,6 +84,7 @@ export function adaptOfficialMessage(msg: OfficialMessageLike): Message | null {
         total_cost_usd: msg.total_cost_usd,
         usage: msg.usage,
         modelUsage: msg.modelUsage,
+        structured_output: msg.structured_output,
         permission_denials: msg.permission_denials,
         // Back-compat: keep the nested cost.total_cost the parser's getUsage() reads.
         cost: { total_cost: msg.total_cost_usd }

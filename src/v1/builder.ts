@@ -17,7 +17,14 @@ import { ResponseParser } from '../parser.js';
 import type { Logger } from '../logger.js';
 import type { V1Options } from './types.js';
 import { runV1Query } from './query-runner.js';
-import type { CanUseTool, HookEvent, HookCallback } from '@anthropic-ai/claude-agent-sdk';
+import type {
+  CanUseTool,
+  HookEvent,
+  HookCallback,
+  McpServerConfig,
+  McpSdkServerConfigWithInstance,
+  OutputFormat
+} from '@anthropic-ai/claude-agent-sdk';
 
 export class V1QueryBuilder {
   private options: V1Options = {};
@@ -118,8 +125,43 @@ export class V1QueryBuilder {
   }
 
   /** Pass an official-SDK MCP server map straight through (name → config). */
-  withMCP(servers: NonNullable<V1Options['mcpServers']>): this {
+  withMCP(servers: Record<string, McpServerConfig>): this {
     this.options.mcpServers = { ...this.options.mcpServers, ...servers };
+    return this;
+  }
+
+  /**
+   * Register a single MCP server, keyed by its `name`. Accepts an in-process
+   * server from `createSdkMcpServer(...)` (the official SDK's custom-tool
+   * mechanism) or any stdio/SSE/HTTP config that carries a `name`.
+   *
+   * @example
+   * ```typescript
+   * import { claude, createSdkMcpServer, tool } from '@instantlyeasy/claude-code-sdk-ts/v1';
+   * import { z } from 'zod';
+   *
+   * const server = createSdkMcpServer({
+   *   name: 'math',
+   *   tools: [tool('add', 'Add two numbers', { a: z.number(), b: z.number() },
+   *     async ({ a, b }) => ({ content: [{ type: 'text', text: String(a + b) }] }))]
+   * });
+   * claude().withMCPServer(server).allowTools('mcp__math__add').query('what is 2+2?');
+   * ```
+   */
+  withMCPServer(server: McpSdkServerConfigWithInstance | (McpServerConfig & { name: string })): this {
+    this.options.mcpServers = { ...this.options.mcpServers, [server.name]: server };
+    return this;
+  }
+
+  /** Request structured output matching a JSON schema (result on `asStructured()`). */
+  withOutputFormat(schema: Record<string, unknown>): this {
+    this.options.outputFormat = { type: 'json_schema', schema } as OutputFormat;
+    return this;
+  }
+
+  /** Resume a prior session by id (alias for withSessionId). */
+  resume(sessionId: string): this {
+    this.options.sessionId = sessionId;
     return this;
   }
 

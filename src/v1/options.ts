@@ -28,6 +28,7 @@ export function toOfficialOptions(o: V1Options): Record<string, unknown> {
   if (o.mcpServers) opts.mcpServers = o.mcpServers;
   if (o.canUseTool) opts.canUseTool = o.canUseTool;
   if (o.hooks) opts.hooks = o.hooks;
+  if (o.outputFormat) opts.outputFormat = o.outputFormat;
   if (o.includePartialMessages) opts.includePartialMessages = true;
 
   // System prompt: append to Claude Code's preset (the SDK defaults to a minimal

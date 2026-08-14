@@ -154,6 +154,17 @@ export class ResponseParser {
   }
 
   /**
+   * Get the structured output of the run, if a JSON-schema output format was
+   * requested. Returns null when no structured output is present (e.g. the
+   * classic subprocess API, which does not support structured outputs).
+   */
+  async asStructured<T = unknown>(): Promise<T | null> {
+    await this.consume();
+    const resultMsg = this.messages.findLast((msg): msg is ResultMessage => msg.type === 'result');
+    return (resultMsg?.structured_output as T | undefined) ?? null;
+  }
+
+  /**
    * Get usage statistics
    */
   async getUsage(): Promise<UsageStats | null> {

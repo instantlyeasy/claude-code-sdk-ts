@@ -12,6 +12,19 @@ export { toOfficialOptions } from './options.js';
 export { adaptOfficialMessage } from './adapter.js';
 export type { V1Options } from './types.js';
 
+// In-process MCP servers + custom tools, and session utilities — re-exported
+// from the official SDK so v1 consumers get them from this single entry point.
+export {
+  createSdkMcpServer,
+  tool,
+  listSessions,
+  getSessionInfo,
+  getSessionMessages,
+  forkSession,
+  renameSession,
+  deleteSession
+} from '@anthropic-ai/claude-agent-sdk';
+
 // Re-export the shared response surface so v1 consumers need only one import.
 export { ResponseParser, type ToolExecution, type UsageStats } from '../parser.js';
 export type {
@@ -35,5 +48,11 @@ export type {
   HookCallback,
   HookCallbackMatcher,
   HookInput,
-  HookJSONOutput
+  HookJSONOutput,
+  McpServerConfig,
+  McpSdkServerConfigWithInstance,
+  SdkMcpToolDefinition,
+  OutputFormat,
+  SDKSessionInfo,
+  SessionMessage
 } from '@anthropic-ai/claude-agent-sdk';

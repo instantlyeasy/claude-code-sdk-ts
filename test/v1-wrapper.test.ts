@@ -12,18 +12,29 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
     return (async function* () {
       for (const m of fixture) yield m;
     })();
-  }
+  },
+  // Stubs for the symbols the ./v1 entry re-exports, so the re-export wiring is
+  // exercised without the real (CLI-spawning) implementations.
+  createSdkMcpServer: vi.fn((o: { name: string }) => ({ type: 'sdk', name: o.name, instance: {} })),
+  tool: vi.fn((name: string) => ({ name })),
+  listSessions: vi.fn(async () => []),
+  getSessionInfo: vi.fn(async () => undefined),
+  getSessionMessages: vi.fn(async () => []),
+  forkSession: vi.fn(async () => ({})),
+  renameSession: vi.fn(async () => undefined),
+  deleteSession: vi.fn(async () => undefined)
 }));
 
 // Imported after the mock is registered.
-const { claude, toOfficialOptions, adaptOfficialMessage } = await import('../src/v1/index.js');
+const v1 = await import('../src/v1/index.js');
+const { claude, toOfficialOptions, adaptOfficialMessage } = v1;
 
 const officialStream = [
   { type: 'system', subtype: 'init', session_id: 's1', model: 'claude-x', tools: ['Read'] },
   { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { path: 'a.txt' } }] }, session_id: 's1', parent_tool_use_id: null },
   { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'file body', is_error: false }] }, session_id: 's1', parent_tool_use_id: null },
   { type: 'assistant', message: { content: [{ type: 'text', text: 'The file says hello.' }] }, session_id: 's1', parent_tool_use_id: null },
-  { type: 'result', subtype: 'success', result: 'The file says hello.', is_error: false, num_turns: 1, total_cost_usd: 0.0234, session_id: 's1', usage: { input_tokens: 12, output_tokens: 7 }, modelUsage: {} }
+  { type: 'result', subtype: 'success', result: 'The file says hello.', is_error: false, num_turns: 1, total_cost_usd: 0.0234, session_id: 's1', usage: { input_tokens: 12, output_tokens: 7 }, modelUsage: {}, structured_output: { answer: 42 } }
 ];
 
 beforeEach(() => {
@@ -133,5 +144,47 @@ describe('v1 canUseTool + hooks', () => {
     await claude().onPreToolUse(a).onPreToolUse(b).query('go').asText();
     const hooks = captured.options?.hooks as Record<string, unknown[]>;
     expect(hooks.PreToolUse).toHaveLength(2);
+  });
+});
+
+describe('v1 in-process MCP servers', () => {
+  it('re-exports createSdkMcpServer and tool as functions', () => {
+    expect(typeof v1.createSdkMcpServer).toBe('function');
+    expect(typeof v1.tool).toBe('function');
+  });
+
+  it('withMCPServer keys the server by its name in the official mcpServers map', async () => {
+    const server = { type: 'sdk' as const, name: 'math', instance: {} as never };
+    await claude().withMCPServer(server).query('go').asText();
+    const mcp = captured.options?.mcpServers as Record<string, unknown>;
+    expect(mcp.math).toBe(server);
+  });
+});
+
+describe('v1 sessions', () => {
+  it('re-exports the session utilities as functions', () => {
+    for (const fn of ['listSessions', 'getSessionInfo', 'getSessionMessages', 'forkSession', 'renameSession', 'deleteSession']) {
+      expect(typeof (v1 as Record<string, unknown>)[fn]).toBe('function');
+    }
+  });
+
+  it('.resume(id) maps to the official resume option', async () => {
+    await claude().resume('sess-xyz').query('go').asText();
+    expect(captured.options?.resume).toBe('sess-xyz');
+  });
+});
+
+describe('v1 structured outputs', () => {
+  it('withOutputFormat maps to the official json_schema shape', () => {
+    const opts = toOfficialOptions({ outputFormat: { type: 'json_schema', schema: { type: 'object' } } });
+    expect(opts.outputFormat).toEqual({ type: 'json_schema', schema: { type: 'object' } });
+  });
+
+  it('asStructured() returns the result message structured_output', async () => {
+    const structured = await claude()
+      .withOutputFormat({ type: 'object', properties: { answer: { type: 'number' } } })
+      .query('go')
+      .asStructured<{ answer: number }>();
+    expect(structured).toEqual({ answer: 42 });
   });
 });

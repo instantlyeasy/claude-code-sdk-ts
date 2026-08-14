@@ -128,6 +128,8 @@ export interface ResultMessage {
   };
   /** Per-model usage/accounting (CLI `modelUsage`), the authoritative source incl. subagents. */
   modelUsage?: Record<string, unknown>;
+  /** Structured result when a JSON-schema output format was requested (CLI `structured_output`). */
+  structured_output?: unknown;
   /** Tools the CLI auto-denied during the run (CLI `permission_denials`). */
   permission_denials?: Array<{ tool_name: string; tool_use_id: string; tool_input: Record<string, unknown> }>;
   cost?: {
